@@ -120,31 +120,31 @@ export class CreateReleaseComponent implements OnInit {
 
   getPocs(productId: string): FormArray {
     const scope = this.getProductScope(productId) as any;
-    return scope?.get('pocs') as FormArray;
+    return scope?.get('pocs') as FormArray || this.fb.array([]);
   }
 
   addPoc(productId: string) {
     const pocs = this.getPocs(productId);
-    if (pocs) {
+    if (pocs && pocs.length >= 0) {
       pocs.push(this.fb.control(''));
     }
   }
 
   removePoc(productId: string, index: number) {
     const pocs = this.getPocs(productId);
-    if (pocs) {
+    if (pocs && pocs.length >= 0) {
       pocs.removeAt(index);
     }
   }
 
   getFixedVersions(productId: string): FormArray {
     const scope = this.getProductScope(productId) as any;
-    return scope?.get('fixed_versions') as FormArray;
+    return scope?.get('fixed_versions') as FormArray || this.fb.array([]);
   }
 
   addFixedVersion(productId: string) {
     const fixedVersions = this.getFixedVersions(productId);
-    if (fixedVersions) {
+    if (fixedVersions && fixedVersions.length >= 0) {
       fixedVersions.push(this.fb.group({
         jira_board_id: [''],
         fixed_version: ['']
@@ -154,7 +154,7 @@ export class CreateReleaseComponent implements OnInit {
 
   removeFixedVersion(productId: string, index: number) {
     const fixedVersions = this.getFixedVersions(productId);
-    if (fixedVersions) {
+    if (fixedVersions && fixedVersions.length >= 0) {
       fixedVersions.removeAt(index);
     }
   }

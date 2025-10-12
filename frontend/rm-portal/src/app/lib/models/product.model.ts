@@ -14,6 +14,7 @@ export interface Product {
   technical_lead?: string;
   jira_boards: JiraBoardInfo[];
   squads: string[];
+  fixed_versions?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +28,7 @@ export interface ProductCreateDto {
   technical_lead?: string;
   jira_boards?: JiraBoardInfo[];
   squads?: string[];
+  fixed_versions?: string[];
 }
 
 export interface ProductUpdateDto {
@@ -38,4 +40,5 @@ export interface ProductUpdateDto {
   technical_lead?: string;
   jira_boards?: JiraBoardInfo[];
   squads?: string[];
+  fixed_versions?: string[];
 }
