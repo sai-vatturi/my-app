@@ -1,0 +1,18 @@
+<div class="workflow-container" #svgContainer>
+  <!-- SVG will be rendered here by D3 -->
+</div>
+
+<div class="toolbar">
+  <app-button variant="secondary" size="sm" (clicked)="zoomIn()" ariaLabel="Zoom in">
+    <ng-icon name="heroPlus" size="16"></ng-icon>
+  </app-button>
+  <app-button variant="secondary" size="sm" (clicked)="zoomOut()" ariaLabel="Zoom out">
+    <ng-icon name="heroMinus" size="16"></ng-icon>
+  </app-button>
+  <app-button variant="secondary" size="sm" (clicked)="fitToScreen()" ariaLabel="Fit to screen">
+    <ng-icon name="heroArrowsPointingOut" size="16"></ng-icon>
+  </app-button>
+  <app-button variant="secondary" size="sm" (clicked)="toggleLock()" [ariaLabel]="isLocked() ? 'Unlock pan/zoom' : 'Lock pan/zoom'">
+    <ng-icon [name]="isLocked() ? 'heroLockClosed' : 'heroLockOpen'" size="16"></ng-icon>
+  </app-button>
+</div>
