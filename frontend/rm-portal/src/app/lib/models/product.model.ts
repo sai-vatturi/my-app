@@ -8,8 +8,6 @@ export interface Product {
   _id: string;
   name: string;
   description?: string;
-  platform?: string;
-  country?: string;
   product_owner?: string;
   technical_lead?: string;
   jira_boards: JiraBoardInfo[];
@@ -22,8 +20,6 @@ export interface Product {
 export interface ProductCreateDto {
   name: string;
   description?: string;
-  platform?: string;
-  country?: string;
   product_owner?: string;
   technical_lead?: string;
   jira_boards?: JiraBoardInfo[];
@@ -34,8 +30,6 @@ export interface ProductCreateDto {
 export interface ProductUpdateDto {
   name?: string;
   description?: string;
-  platform?: string;
-  country?: string;
   product_owner?: string;
   technical_lead?: string;
   jira_boards?: JiraBoardInfo[];
