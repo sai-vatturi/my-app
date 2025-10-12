@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 
 from app.schemas.product import ProductCreate, ProductUpdate
@@ -26,7 +26,7 @@ class ProductService:
     async def create_product(self, product_data: ProductCreate) -> dict:
         """Create a new product"""
         # Convert JiraBoardInfo objects to dictionaries
-        jira_boards_dicts = [board.dict() for board in product_data.jira_boards] if product_data.jira_boards else []
+        jira_boards_dicts = [board.model_dump() for board in product_data.jira_boards] if product_data.jira_boards else []
         
         product = Product(
             name=product_data.name,
@@ -45,9 +45,14 @@ class ProductService:
 
     async def update_product(self, product_id: str, product_data: ProductUpdate) -> Optional[dict]:
         """Update an existing product"""
-        update_data = {k: v for k, v in product_data.dict().items() if v is not None}
+        update_data = product_data.model_dump(exclude_none=True)
+        if "jira_boards" in update_data and update_data["jira_boards"] is not None:
+            update_data["jira_boards"] = [
+                board.model_dump() if hasattr(board, "model_dump") else board
+                for board in update_data["jira_boards"]
+            ]
         if update_data:
-            update_data["updated_at"] = datetime.utcnow()
+            update_data["updated_at"] = datetime.now(timezone.utc)
             await self.collection.update_one(
                 {"_id": ObjectId(product_id)},
                 {"$set": update_data}

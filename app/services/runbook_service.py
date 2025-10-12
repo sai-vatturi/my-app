@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 
 from app.schemas.runbook import RunbookCreate, RunbookUpdate
@@ -47,9 +47,9 @@ class RunbookService:
 
     async def update_runbook(self, runbook_id: str, runbook_data: RunbookUpdate) -> Optional[dict]:
         """Update an existing runbook"""
-        update_data = {k: v for k, v in runbook_data.dict().items() if v is not None}
+        update_data = runbook_data.model_dump(exclude_none=True)
         if update_data:
-            update_data["updated_at"] = datetime.utcnow()
+            update_data["updated_at"] = datetime.now(timezone.utc)
             await self.collection.update_one(
                 {"_id": ObjectId(runbook_id)},
                 {"$set": update_data}

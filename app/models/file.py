@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from bson import ObjectId
 
 class File:
     def __init__(self, **kwargs):
-        self._id = kwargs.get('_id', ObjectId())
+        self._id = str(kwargs.get('_id', ObjectId()))
         self.filename = kwargs.get('filename')
         self.original_filename = kwargs.get('original_filename')
         self.file_path = kwargs.get('file_path')
@@ -13,12 +13,12 @@ class File:
         self.release_id = kwargs.get('release_id')
         self.file_type = kwargs.get('file_type')
         self.description = kwargs.get('description')
-        self.created_at = kwargs.get('created_at', datetime.utcnow())
-        self.updated_at = kwargs.get('updated_at', datetime.utcnow())
+        self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
+        self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
     def to_dict(self):
         return {
-            '_id': self._id,
+            '_id': str(self._id),
             'filename': self.filename,
             'original_filename': self.original_filename,
             'file_path': self.file_path,

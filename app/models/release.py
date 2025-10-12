@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from bson import ObjectId
 
 class Release:
     def __init__(self, **kwargs):
-        self._id = kwargs.get('_id', ObjectId())
+        self._id = str(kwargs.get('_id', ObjectId()))
         self.name = kwargs.get('name')
         self.description = kwargs.get('description')
         self.release_date = kwargs.get('release_date')
@@ -13,12 +13,12 @@ class Release:
         self.jira_release_version = kwargs.get('jira_release_version')
         self.participating_squads = kwargs.get('participating_squads', [])
         self.product_scopes = kwargs.get('product_scopes', [])
-        self.created_at = kwargs.get('created_at', datetime.utcnow())
-        self.updated_at = kwargs.get('updated_at', datetime.utcnow())
+        self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
+        self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
     def to_dict(self):
         return {
-            '_id': self._id,
+            '_id': str(self._id),
             'name': self.name,
             'description': self.description,
             'release_date': self.release_date,

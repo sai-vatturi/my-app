@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, GetJsonSchemaHandler
+from pydantic import BaseModel, Field, GetJsonSchemaHandler, ConfigDict, field_serializer
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
 from typing import Optional, List, Any
@@ -32,11 +32,13 @@ class JiraBoardInfo(BaseModel):
 class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
+    platform: Optional[str] = None
+    country: Optional[str] = None
     product_owner: Optional[str] = None
     technical_lead: Optional[str] = None
-    jira_boards: List[JiraBoardInfo] = []  # Multiple JIRA boards per product
-    squads: List[str] = []
-    fixed_versions: List[str] = []  # Standalone fixed versions
+    jira_boards: List[JiraBoardInfo] = Field(default_factory=list)  # Multiple JIRA boards per product
+    squads: List[str] = Field(default_factory=list)
+    fixed_versions: List[str] = Field(default_factory=list)  # Standalone fixed versions
 
 class ProductCreate(ProductBase):
     pass
@@ -44,6 +46,8 @@ class ProductCreate(ProductBase):
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    platform: Optional[str] = None
+    country: Optional[str] = None
     product_owner: Optional[str] = None
     technical_lead: Optional[str] = None
     jira_boards: Optional[List[JiraBoardInfo]] = None
@@ -55,7 +59,11 @@ class ProductResponse(ProductBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+    @field_serializer("id", when_used="json")
+    def serialize_id(self, value: PyObjectId) -> str:
+        return str(value)

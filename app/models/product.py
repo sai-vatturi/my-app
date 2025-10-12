@@ -1,25 +1,29 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from bson import ObjectId
 
 class Product:
     def __init__(self, **kwargs):
-        self._id = kwargs.get('_id', ObjectId())
+        self._id = str(kwargs.get('_id', ObjectId()))
         self.name = kwargs.get('name')
         self.description = kwargs.get('description')
+        self.platform = kwargs.get('platform')
+        self.country = kwargs.get('country')
         self.product_owner = kwargs.get('product_owner')
         self.technical_lead = kwargs.get('technical_lead')
         self.jira_boards = kwargs.get('jira_boards', [])
         self.squads = kwargs.get('squads', [])
         self.fixed_versions = kwargs.get('fixed_versions', [])
-        self.created_at = kwargs.get('created_at', datetime.utcnow())
-        self.updated_at = kwargs.get('updated_at', datetime.utcnow())
+        self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
+        self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
     def to_dict(self):
         return {
-            '_id': self._id,
+            '_id': str(self._id),
             'name': self.name,
             'description': self.description,
+            'platform': self.platform,
+            'country': self.country,
             'product_owner': self.product_owner,
             'technical_lead': self.technical_lead,
             'jira_boards': self.jira_boards,

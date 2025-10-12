@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, GetJsonSchemaHandler
+from pydantic import BaseModel, Field, GetJsonSchemaHandler, ConfigDict, field_serializer
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
 from typing import Optional, List, Dict, Any
@@ -29,14 +29,14 @@ class RunbookBase(BaseModel):
     application_name: str
     build_version: str
     release_version: str
-    product_ids: List[str] = []  # Multiple products this runbook applies to
-    point_of_contact: Dict[str, str] = {}  # PE, PO contacts
+    product_ids: List[str] = Field(default_factory=list)  # Multiple products this runbook applies to
+    point_of_contact: Dict[str, str] = Field(default_factory=dict)  # PE, PO contacts
     change_request_details: Optional[str] = None
     cab_approval_status: str = "pending"  # pending, approved, rejected
-    pre_deployment_activities: List[Dict[str, Any]] = []
-    post_deployment_activities: List[Dict[str, Any]] = []
-    deployment_steps: List[Dict[str, Any]] = []
-    resources: List[str] = []  # Application teams, SCM, DevOps, etc.
+    pre_deployment_activities: List[Dict[str, Any]] = Field(default_factory=list)
+    post_deployment_activities: List[Dict[str, Any]] = Field(default_factory=list)
+    deployment_steps: List[Dict[str, Any]] = Field(default_factory=list)
+    resources: List[str] = Field(default_factory=list)  # Application teams, SCM, DevOps, etc.
     external_team_details: Optional[str] = None
 
 class RunbookCreate(RunbookBase):
@@ -61,7 +61,11 @@ class RunbookResponse(RunbookBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+    @field_serializer("id", when_used="json")
+    def serialize_id(self, value: PyObjectId) -> str:
+        return str(value)

@@ -27,6 +27,6 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 app.add_event_handler("startup", startup_event)
 app.add_event_handler("shutdown", shutdown_event)
 
-@app.get("/health", tags=["health"]) 
+@app.get("/health", tags=["health"])
 async def health():
-    return {"status": "ok", "version": settings.VERSION}
+    return {"status": "ok"}

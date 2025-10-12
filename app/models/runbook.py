@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 
 class Runbook:
     def __init__(self, **kwargs):
-        self._id = kwargs.get('_id', ObjectId())
+        self._id = str(kwargs.get('_id', ObjectId()))
         self.release_id = kwargs.get('release_id')
         self.application_name = kwargs.get('application_name')
         self.build_version = kwargs.get('build_version')
@@ -18,12 +18,12 @@ class Runbook:
         self.deployment_steps = kwargs.get('deployment_steps', [])
         self.resources = kwargs.get('resources', [])
         self.external_team_details = kwargs.get('external_team_details')
-        self.created_at = kwargs.get('created_at', datetime.utcnow())
-        self.updated_at = kwargs.get('updated_at', datetime.utcnow())
+        self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
+        self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
     def to_dict(self):
         return {
-            '_id': self._id,
+            '_id': str(self._id),
             'release_id': self.release_id,
             'application_name': self.application_name,
             'build_version': self.build_version,

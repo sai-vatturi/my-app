@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, GetJsonSchemaHandler
+from pydantic import BaseModel, Field, GetJsonSchemaHandler, ConfigDict, field_serializer
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
 from typing import Optional, List, Any
@@ -30,7 +30,7 @@ class SquadBase(BaseModel):
     jira_board_id: Optional[str] = None
     team_lead: Optional[str] = None
     product_owner: Optional[str] = None
-    products: List[str] = []
+    products: List[str] = Field(default_factory=list)
 
 class SquadCreate(SquadBase):
     pass
@@ -48,7 +48,11 @@ class SquadResponse(SquadBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+    @field_serializer("id", when_used="json")
+    def serialize_id(self, value: PyObjectId) -> str:
+        return str(value)

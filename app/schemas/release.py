@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, GetJsonSchemaHandler
+from pydantic import BaseModel, Field, GetJsonSchemaHandler, ConfigDict, field_serializer
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
 from typing import Optional, List, Any
@@ -27,7 +27,7 @@ class PyObjectId(ObjectId):
 class ProductScope(BaseModel):
     product_id: str
     scope_description: str
-    fixed_versions: List[dict] = []  # [{"jira_board_id": "board1", "fixed_version": "v1.0"}]
+    fixed_versions: List[dict] = Field(default_factory=list)  # [{"jira_board_id": "board1", "fixed_version": "v1.0"}]
 
 class ReleaseBase(BaseModel):
     name: str
@@ -36,8 +36,8 @@ class ReleaseBase(BaseModel):
     status: str = "planned"  # planned, in_progress, completed, cancelled
     overall_scope: Optional[str] = None
     jira_release_version: Optional[str] = None
-    participating_squads: List[str] = []
-    product_scopes: List[ProductScope] = []  # Each product with its own scope and fixed versions
+    participating_squads: List[str] = Field(default_factory=list)
+    product_scopes: List[ProductScope] = Field(default_factory=list)  # Each product with its own scope and fixed versions
 
 class ReleaseCreate(ReleaseBase):
     pass
@@ -57,7 +57,11 @@ class ReleaseResponse(ReleaseBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+    @field_serializer("id", when_used="json")
+    def serialize_id(self, value: PyObjectId) -> str:
+        return str(value)

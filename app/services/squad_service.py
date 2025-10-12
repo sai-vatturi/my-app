@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 
 from app.schemas.squad import SquadCreate, SquadUpdate
@@ -40,9 +40,9 @@ class SquadService:
 
     async def update_squad(self, squad_id: str, squad_data: SquadUpdate) -> Optional[dict]:
         """Update an existing squad"""
-        update_data = {k: v for k, v in squad_data.dict().items() if v is not None}
+        update_data = squad_data.model_dump(exclude_none=True)
         if update_data:
-            update_data["updated_at"] = datetime.utcnow()
+            update_data["updated_at"] = datetime.now(timezone.utc)
             await self.collection.update_one(
                 {"_id": ObjectId(squad_id)},
                 {"$set": update_data}

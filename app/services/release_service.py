@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 
 from app.schemas.release import ReleaseCreate, ReleaseUpdate
@@ -26,7 +26,7 @@ class ReleaseService:
     async def create_release(self, release_data: ReleaseCreate) -> dict:
         """Create a new release"""
         # Convert ProductScope objects to dictionaries
-        product_scopes_dicts = [scope.dict() for scope in release_data.product_scopes] if release_data.product_scopes else []
+        product_scopes_dicts = [scope.model_dump() for scope in release_data.product_scopes] if release_data.product_scopes else []
         
         release = Release(
             name=release_data.name,
@@ -45,9 +45,14 @@ class ReleaseService:
 
     async def update_release(self, release_id: str, release_data: ReleaseUpdate) -> Optional[dict]:
         """Update an existing release"""
-        update_data = {k: v for k, v in release_data.dict().items() if v is not None}
+        update_data = release_data.model_dump(exclude_none=True)
+        if "product_scopes" in update_data and update_data["product_scopes"] is not None:
+            update_data["product_scopes"] = [
+                scope.model_dump() if hasattr(scope, "model_dump") else scope
+                for scope in update_data["product_scopes"]
+            ]
         if update_data:
-            update_data["updated_at"] = datetime.utcnow()
+            update_data["updated_at"] = datetime.now(timezone.utc)
             await self.collection.update_one(
                 {"_id": ObjectId(release_id)},
                 {"$set": update_data}
