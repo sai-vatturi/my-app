@@ -224,7 +224,7 @@
                       <label class="block text-sm font-medium text-gray-700 mb-2">
                         Points of Contact (POCs)
                       </label>
-                      @if (getPocs(product._id)?.length > 0) {
+                      @if (getPocs(product._id).length > 0) {
                         <div class="space-y-2 mb-2">
                           @for (poc of getPocs(product._id).controls; track $index; let i = $index) {
                             <div class="flex gap-2">
@@ -265,7 +265,7 @@
                       <label class="block text-sm font-medium text-gray-700 mb-2">
                         Fixed Versions
                       </label>
-                      @if (getFixedVersions(product._id)?.length > 0) {
+                      @if (getFixedVersions(product._id).length > 0) {
                         <div class="space-y-2 mb-2">
                           @for (fv of getFixedVersions(product._id).controls; track $index; let i = $index) {
                             <div class="flex gap-2">
