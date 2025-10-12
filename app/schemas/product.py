@@ -32,12 +32,11 @@ class JiraBoardInfo(BaseModel):
 class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
-    platform: str  # DC, OH, IO, etc.
-    country: Optional[str] = None  # HK, MY, SG, etc.
     product_owner: Optional[str] = None
     technical_lead: Optional[str] = None
     jira_boards: List[JiraBoardInfo] = []  # Multiple JIRA boards per product
     squads: List[str] = []
+    fixed_versions: List[str] = []  # Standalone fixed versions
 
 class ProductCreate(ProductBase):
     pass
@@ -45,12 +44,11 @@ class ProductCreate(ProductBase):
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    platform: Optional[str] = None
-    country: Optional[str] = None
     product_owner: Optional[str] = None
     technical_lead: Optional[str] = None
     jira_boards: Optional[List[JiraBoardInfo]] = None
     squads: Optional[List[str]] = None
+    fixed_versions: Optional[List[str]] = None
 
 class ProductResponse(ProductBase):
     id: PyObjectId = Field(alias="_id")
