@@ -4,7 +4,7 @@ import { FormBuilder, FormArray, ReactiveFormsModule, Validators } from '@angula
 import { NgIconComponent, provideIcons } from '@ng-icons/core';
 import { heroPlus, heroPencil, heroTrash, heroXMark } from '@ng-icons/heroicons/outline';
 import { ButtonComponent } from '../../../components/ui/button/button.component';
-import { CardComponent, CardBodyComponent } from '../../../components/ui/card/card.component';
+import { CardComponent, CardBodyComponent, CardHeaderComponent } from '../../../components/ui/card/card.component';
 import { SpinnerComponent } from '../../../components/ui/spinner/spinner.component';
 import { EmptyStateComponent } from '../../../components/ui/empty-state/empty-state.component';
 import { ProductApiService } from '../../../lib/api/product-api.service';
@@ -20,6 +20,7 @@ import { Product } from '../../../lib/models/product.model';
     ButtonComponent,
     CardComponent,
     CardBodyComponent,
+    CardHeaderComponent,
     SpinnerComponent,
     EmptyStateComponent
   ],
@@ -73,6 +74,7 @@ export class ProductListComponent implements OnInit {
   onAdd() {
     this.editingProduct.set(null);
     this.productForm.reset();
+    this.fixedVersions.clear();
     this.showForm.set(true);
   }
 
@@ -142,6 +144,7 @@ export class ProductListComponent implements OnInit {
         this.submitting.set(false);
         this.showForm.set(false);
         this.productForm.reset();
+        this.fixedVersions.clear();
         this.loadProducts();
       },
       error: (err) => {

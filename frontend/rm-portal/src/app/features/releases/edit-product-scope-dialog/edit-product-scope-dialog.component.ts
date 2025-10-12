@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormArray, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CardComponent, CardBodyComponent, CardHeaderComponent } from '../../../components/ui/card/card.component';
@@ -12,9 +12,6 @@ import { Product } from '../../../lib/models/product.model';
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    CardComponent,
-    CardHeaderComponent,
-    CardBodyComponent,
     ButtonComponent
   ],
   template: `
@@ -189,30 +186,38 @@ export class EditProductScopeDialogComponent {
   }
 
   constructor() {
-    // Watch for changes to productScope input
-    // When it changes, populate the form
-    this.scopeForm.reset();
-    const scope = this.productScope();
-    if (scope) {
-      this.scopeForm.patchValue({
-        scope_description: scope.scope_description || ''
-      });
+    effect(
+      () => {
+        const open = this.isOpen();
+        const scope = this.productScope();
 
-      // Populate POCs
-      this.pocs.clear();
-      scope.pocs.forEach(poc => {
-        this.pocs.push(this.fb.control(poc));
-      });
+        this.scopeForm.reset();
+        this.pocs.clear();
+        this.fixedVersions.clear();
 
-      // Populate Fixed Versions
-      this.fixedVersions.clear();
-      scope.fixed_versions.forEach(fv => {
-        this.fixedVersions.push(this.fb.group({
-          jira_board_id: [fv.jira_board_id],
-          fixed_version: [fv.fixed_version]
-        }));
-      });
-    }
+        if (!open || !scope) {
+          return;
+        }
+
+        this.scopeForm.patchValue({
+          scope_description: scope.scope_description || ''
+        });
+
+        scope.pocs.forEach(poc => {
+          this.pocs.push(this.fb.control(poc));
+        });
+
+        scope.fixed_versions.forEach(fv => {
+          this.fixedVersions.push(
+            this.fb.group({
+              jira_board_id: [fv.jira_board_id],
+              fixed_version: [fv.fixed_version]
+            })
+          );
+        });
+      },
+      { allowSignalWrites: true }
+    );
   }
 
   addPoc() {

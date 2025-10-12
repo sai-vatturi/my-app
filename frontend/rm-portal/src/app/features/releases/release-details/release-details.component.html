@@ -1,0 +1,155 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <app-button variant="ghost" size="sm" type="button" (clicked)="onBack()">Back to releases</app-button>
+      <h1 class="text-3xl font-semibold text-gray-900">Release details</h1>
+      <p class="text-sm text-gray-600">Review the plan, milestones and scope captured for this release.</p>
+    </div>
+    <app-button variant="primary" type="button" (clicked)="onEdit()">Edit release</app-button>
+  </div>
+
+  @if (loading()) {
+    <div class="flex justify-center">
+      <app-spinner></app-spinner>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error() }}
+    </div>
+  }
+
+  @if (!loading() && !error()) {
+    @if (release(); as currentRelease) {
+    <app-card>
+      <app-card-header>
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-2xl font-semibold text-gray-900">{{ currentRelease.name }}</h2>
+            <p class="text-sm text-gray-600">{{ currentRelease.description || 'No description provided.' }}</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="rounded-full px-3 py-1 text-sm font-medium"
+              [ngClass]="{
+                'bg-yellow-100 text-yellow-800': currentRelease.status === 'planned',
+                'bg-blue-100 text-blue-800': currentRelease.status === 'in_progress',
+                'bg-green-100 text-green-800': currentRelease.status === 'completed',
+                'bg-red-100 text-red-800': currentRelease.status === 'cancelled'
+              }"
+            >
+              {{ currentRelease.status | titlecase }}
+            </span>
+            <div class="text-sm text-gray-600">
+              <span class="font-medium text-gray-900">Release date:</span>
+              <span class="ml-1">{{ currentRelease.release_date | date: 'mediumDate' }}</span>
+            </div>
+            @if (currentRelease.jira_release_version) {
+              <div class="text-sm text-gray-600">
+                <span class="font-medium text-gray-900">JIRA version:</span>
+                <span class="ml-1">{{ currentRelease.jira_release_version }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      </app-card-header>
+
+      <app-card-body>
+        <div class="space-y-6">
+          @if (currentRelease.overall_scope) {
+            <section class="space-y-2">
+              <h3 class="text-lg font-semibold text-gray-900">Overall scope</h3>
+              <p class="text-sm text-gray-600 whitespace-pre-line">{{ currentRelease.overall_scope }}</p>
+            </section>
+          }
+
+          <section class="grid gap-4 sm:grid-cols-2">
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+              <span class="font-semibold text-gray-900">Participating products</span>
+              <div class="mt-2 flex flex-wrap gap-2">
+                @if (currentRelease.participating_products.length) {
+                  <span
+                    *ngFor="let productId of currentRelease.participating_products"
+                    class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
+                  >
+                    {{ productId }}
+                  </span>
+                } @else {
+                  <p class="text-sm text-gray-500">No products linked yet.</p>
+                }
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+              <span class="font-semibold text-gray-900">Change ticket</span>
+              <p class="mt-2">{{ currentRelease.chg_number || 'Not specified' }}</p>
+              <span class="mt-4 block font-semibold text-gray-900">Release type</span>
+              <p>{{ currentRelease.release_type || 'Not specified' }}</p>
+            </div>
+          </section>
+
+          <section class="space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-900">Product scopes</h3>
+              <span class="text-sm text-gray-500">{{ currentRelease.product_scopes.length || 0 }} scope entries</span>
+            </div>
+
+            @if (currentRelease.product_scopes.length) {
+              <div class="space-y-4">
+                <div
+                  *ngFor="let scope of currentRelease.product_scopes; let i = index"
+                  class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h4 class="text-base font-semibold text-gray-900">Product ID: {{ scope.product_id }}</h4>
+                      <p class="text-sm text-gray-600" *ngIf="scope.scope_description">{{ scope.scope_description }}</p>
+                    </div>
+                    <span class="text-xs uppercase tracking-wide text-gray-400">Scope {{ i + 1 }}</span>
+                  </div>
+
+                  <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <h5 class="text-sm font-semibold text-gray-900">Points of contact</h5>
+                      @if (scope.pocs.length) {
+                        <ul class="mt-2 space-y-1 text-sm text-gray-600">
+                          <li *ngFor="let poc of scope.pocs">• {{ poc }}</li>
+                        </ul>
+                      } @else {
+                        <p class="mt-2 text-sm text-gray-500">No POCs listed.</p>
+                      }
+                    </div>
+                    <div>
+                      <h5 class="text-sm font-semibold text-gray-900">Fixed versions</h5>
+                      @if (scope.fixed_versions.length) {
+                        <div class="mt-2 flex flex-wrap gap-2">
+                          <span
+                            *ngFor="let version of scope.fixed_versions"
+                            class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+                          >
+                            {{ version.jira_board_id }} — {{ version.fixed_version }}
+                          </span>
+                        </div>
+                      } @else {
+                        <p class="mt-2 text-sm text-gray-500">No fixed versions captured.</p>
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <p class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                No product scopes recorded for this release yet.
+              </p>
+            }
+          </section>
+        </div>
+      </app-card-body>
+    </app-card>
+    } @else {
+      <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+        Release details are not available.
+      </div>
+    }
+  }
+</div>

@@ -1,18 +1,16 @@
-"""Test-friendly stand-in for the ``requests`` library.
-
-The project tests exercise the HTTP API without actually running a web server.
-To keep the public FastAPI application unchanged we expose a tiny shim that
-forwards calls to a FastAPI ``TestClient`` instance.  Only the subset of the
-``requests`` API used by the tests is implemented (``get``, ``post``, ``put``
- and ``delete``).
-"""
+"""Lightweight compatibility layer for the ``requests`` API used in tests."""
 
 from __future__ import annotations
 
 import atexit
+import json
+import os
 from dataclasses import dataclass
-from typing import Any, Dict
-from urllib.parse import parse_qsl, urlparse
+from types import SimpleNamespace
+from typing import Any, Dict, Optional
+from urllib.error import URLError
+from urllib.parse import urlencode, urlparse
+from urllib.request import Request, urlopen
 
 from fastapi.testclient import TestClient
 
@@ -21,75 +19,114 @@ from app.main import app
 
 @dataclass
 class _ResponseWrapper:
-    """Small wrapper mimicking the ``requests.Response`` interface."""
+    status_code: int
+    headers: Dict[str, Any]
+    _body: bytes
 
-    _response: Any
-
-    @property
-    def status_code(self) -> int:
-        return self._response.status_code
+    def json(self) -> Any:
+        if not self._body:
+            return None
+        return json.loads(self._body.decode("utf-8"))
 
     @property
     def text(self) -> str:
-        return self._response.text
-
-    @property
-    def headers(self) -> Dict[str, Any]:
-        return dict(self._response.headers)
-
-    def json(self) -> Any:
-        return self._response.json()
+        return self._body.decode("utf-8")
 
 
-class _RequestsShim:
+class _HttpBackend:
+    def request(self, method: str, url: str, **kwargs: Any) -> _ResponseWrapper:
+        data = kwargs.get("data")
+        json_payload = kwargs.get("json")
+        headers = dict(kwargs.get("headers") or {})
+        params = kwargs.get("params")
+
+        if params:
+            parsed = urlparse(url)
+            query = urlencode(params, doseq=True)
+            url = parsed._replace(query=query).geturl()
+
+        body: Optional[bytes] = None
+        if json_payload is not None:
+            body = json.dumps(json_payload).encode("utf-8")
+            headers.setdefault("Content-Type", "application/json")
+        elif data is not None:
+            if isinstance(data, bytes):
+                body = data
+            else:
+                body = str(data).encode("utf-8")
+
+        request = Request(url, data=body, headers=headers, method=method.upper())
+        with urlopen(request, timeout=float(os.getenv("RM_PORTAL_HTTP_TIMEOUT", "5"))) as response:
+            return _ResponseWrapper(
+                status_code=response.status,
+                headers=dict(response.headers),
+                _body=response.read(),
+            )
+
+
+class _TestClientBackend:
     def __init__(self) -> None:
         self._client_cm = TestClient(app)
         self._client = self._client_cm.__enter__()
         atexit.register(self._client_cm.__exit__, None, None, None)
 
-    def _request(self, method: str, url: str, **kwargs: Any) -> _ResponseWrapper:
+    def request(self, method: str, url: str, **kwargs: Any) -> _ResponseWrapper:
         parsed = urlparse(url)
-        path = parsed.path or "/"
-        query_params = dict(parse_qsl(parsed.query)) if parsed.query else None
-
         response = self._client.request(
             method=method.upper(),
-            url=path,
-            params=query_params,
+            url=parsed.path or "/",
+            params=dict(kwargs.get("params") or {}),
             json=kwargs.get("json"),
             data=kwargs.get("data"),
             files=kwargs.get("files"),
             headers=kwargs.get("headers"),
         )
-        return _ResponseWrapper(response)
-
-    def get(self, url: str, **kwargs: Any) -> _ResponseWrapper:
-        return self._request("GET", url, **kwargs)
-
-    def post(self, url: str, **kwargs: Any) -> _ResponseWrapper:
-        return self._request("POST", url, **kwargs)
-
-    def put(self, url: str, **kwargs: Any) -> _ResponseWrapper:
-        return self._request("PUT", url, **kwargs)
-
-    def delete(self, url: str, **kwargs: Any) -> _ResponseWrapper:
-        return self._request("DELETE", url, **kwargs)
+        return _ResponseWrapper(
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            _body=response.content,
+        )
 
 
-_client = _RequestsShim()
+_force_test_client = os.getenv("RM_PORTAL_FORCE_TEST_CLIENT", "0") == "1"
+_http_backend = None if _force_test_client else _HttpBackend()
+_test_backend = _TestClientBackend()
+_use_http_backend = _http_backend is not None
+
+
+def _dispatch(method: str, url: str, **kwargs: Any) -> _ResponseWrapper:
+    global _use_http_backend
+
+    if _use_http_backend and _http_backend is not None:
+        try:
+            return _http_backend.request(method, url, **kwargs)
+        except URLError:
+            _use_http_backend = False
+
+    return _test_backend.request(method, url, **kwargs)
+
+
+def request(method: str, url: str, **kwargs: Any) -> _ResponseWrapper:
+    return _dispatch(method, url, **kwargs)
 
 
 def get(url: str, **kwargs: Any) -> _ResponseWrapper:
-    return _client.get(url, **kwargs)
+    return _dispatch("GET", url, **kwargs)
 
 
 def post(url: str, **kwargs: Any) -> _ResponseWrapper:
-    return _client.post(url, **kwargs)
+    return _dispatch("POST", url, **kwargs)
 
 
 def put(url: str, **kwargs: Any) -> _ResponseWrapper:
-    return _client.put(url, **kwargs)
+    return _dispatch("PUT", url, **kwargs)
 
 
 def delete(url: str, **kwargs: Any) -> _ResponseWrapper:
-    return _client.delete(url, **kwargs)
+    return _dispatch("DELETE", url, **kwargs)
+class RequestException(Exception):
+    """Base exception matching the ``requests`` API."""
+
+
+exceptions = SimpleNamespace(RequestException=RequestException)
+
