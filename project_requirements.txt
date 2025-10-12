@@ -1,0 +1,142 @@
+I am working in an X company.
+
+In that company we work for Asia Pacific Region.
+
+In APAC, I work as a release manager.
+
+We have defined this release management process in a different way for apac. 
+
+If you see below, it is the entire release management process that we have defined.
+
+The release management process ensures that multiple applications follow a structured and well-coordinated approach to releasing updates, features and fixes. The process includes planning, approvals, execution, validation and communication to achieve a successful release.
+Development Phase
+        1.      Application teams work on development activities for their planned enhancements and fixes based on the QRP.
+        2.      Release Manager will provide the Jira Release Version to the application teams, and it must be tagged on their Jira stories.
+        3.      Developers follow coding best practices and perform unit testing for their changes.
+        4.      Code reviews are conducted by peers and Tech Leads to ensure quality and adherence to standards.
+        5.      Continuous Integration (CI) pipelines are used to build and validate changes before merging.
+        6.      Security scanning and code quality checks (e.g., SonarQube, AppScan, MSCop) are enforced to catch vulnerabilities early.
+        7.      Feature toggles and configuration management strategies are implemented for controlled rollouts.
+        8.      Application teams maintain their respective development branches, ensuring they align with the release timeline.
+        9.      Regular sync-up meetings with the Release Manager ensure that development is on track and dependencies are addressed early.
+        10.     Release Manager will create a Release Runbook which consist of below sections
+        1.      All applications planned for a release with build versions, release versions, Point of contacts (PEs and POs) for signoffs and approvals.
+        2.      Change Request Details
+        3.      CAB approval status
+        4.      Pre and post deployment activities with dates.
+        5.      Deployment steps (Ownership and responsibilities)
+        6.      Resources (Application teams, SCM, DevOps, CloudOps, TechOps, PVT, BVT and Production Support) who will be part of executing the release.
+Preparation Phase
+        1.      Release Manager will coordinate with multiple applications teams for a common monthly release. Gathers all the details and updates, maintaining the Runbook.
+        2.      All apps must be deployed to SIT environment and QA can start regressions.
+        3.      Build Permit (BP) approval process and training the production support team starts.
+        4.      Release Manager will create a Change Request (CR) or Emergency CR on ServerNow portal for this release and add the CTasks for the deployment activities.
+        5.      CTask information must be provided by application teams, specifying actions such as executing DB scripts, Shutting or restarting an application, enabling ports, etc.
+        6.      Review the Runbook with all the application POs, ensuring alignment and completeness.
+        7.      QA team should callout any outstanding defects or bugs persists.
+Deployment and Testing on UAT & STAGE
+        1.      STAGE deployment
+        1.      QA/Performance team will perform the Sanity or Performance testing and User training on the STAGE environment.
+        2.      Notify application teams and Release Manager on the outcome of the above point and provide required Signoffs.
+        2.      UAT deployment
+        1.      Soft code freeze is enforced after UAT deployment to stabilize the release candidate for testing. Only minimal changes are allowed based on the outcome of the testing.
+        2.      Business users will perform testing on this environment and provide required Signoffs to Release Manager.
+        3.      Release Manager will be updating the CR with all the received signoffs, approvals and any scripts to be executed during the release window.
+        4.      Release Manager will be creating the CTasks with all the details received from app teams and follow up with the respective teams to take the ownership.
+        5.      All signoffs from all application teams must be obtained 1 week prior to the production deployment date.
+        6.      Change Advisory Board (CAB) team will assess the CR. The CR will be approved with at least on UAT approval and after analyzing the impact.
+        7.      Runbook must be signed off by the POs from each application.
+        8.      Exit from UAT - Responsibility of CTO and PEs
+        1.      Review and Signoff the Release Notes by POs/TLs
+        2.      Hard code freeze
+        3.      Build Permit approval must be obtained.
+        9.      Run through Go No Go call.
+        10.     Release Manager sends out the release communication with date, time and duration.
+Release Day
+        1.      POs/PEs must be available during the release window. Release Manager is accountable for this release execution.
+        2.      CTask owners must be available during the window and execute the step as per the runbook.
+        3.      Release Manager coordinates with the members and send live updates and email communications.
+        4.      Deploy the same build to the training environment. Principal Engineer (PE) is responsible for this.
+        5.      PVT (Production Validation Testing)
+        1.      Just after the deployments, PVT users start testing the applications and provide the signoffs.
+        2.      If the PVT fails, then perform roll back activity by considering the previous stable build.
+        6.      BVT (Business Validation Testing)
+        1.      Based on the completion of the release, there will be a specified time slot for BVT users to verify the functionality or change.
+        2.      BVT users will be confirm the testing and raise defects if found any.
+        7.      Publishing Release Notes
+        1.      Release Manager will be publishing the release notes to the respective application teams, leadership, business and other stakeholders.
+        8.      Tech Leads from respective applications will be merging the release branches into the main or master branches.
+Release Night Participants
+Release nights involve coordinated efforts among various roles to ensure successful deployments. Key participants include:
+        •       Team Leaders (TLs)
+        •       Product Owners (POs)
+        •       Product Engineers (PEs)
+        •       C-Task Owners
+        •       Production Support
+        •       Cloud Operations (CloudOps)
+        •       Flip CTOs - For flip releases, the CTO responsible for the flip must be present during the release window. This ensures that any pivotal decisions regarding the release can be made efficiently and effectively.
+Additionally, Business Verification Test (BVT) Users are required at a specified time to validate the release post-deployment.
+Considerations
+
+Escalation Tree
+In the event of issues arising during the release process, an established escalation tree ensures that problems are addressed promptly and by the appropriate personnel. The escalation levels are defined as follows:
+
+Conclusion
+This structured release management process ensures transparency, coordination, and accountability across all teams, leading to efficient and successful releases. Regular monitoring and communication by the Release Manager ensure smooth execution, minimizing risks and delays.
+
+Now to know how releases are done in apac, we primarily work for modular applications. 
+
+There are multiple application in the term that we call as modular. Those applications includes
+
+IO (Integration), DC (Core .net framework), OH (main website with frontend and backend) any many other smaller applications too.
+
+Here, OH is what the business user sees, IO is the integration layer from OH to DC, DC is where the main business logic happens.
+
+We have other applications such as RADAR, DBB, Ratings, RAF, etc.. 
+
+Now for DC, we have a platform which is like the main application where all sub products will be devided.
+
+Similarly for OH, we have a platform which is main and all subproducts will be divided. 
+
+We have different products for each country such HK-MMB, MY-SME, SG-MMB, A&H SG like that. 
+
+Now each product will have a product owner. And there are squads such as squad 1, squad 2, etc.. That will work on the products. Different squads can work on the same product and similarly one squad can work on different products.
+
+Also, these squads are in different jira boards, and we have different products in different jira boards and few products, only one jira board, different squads and different products are there. 
+
+Usually we define scope for an entire year, where we pick one date every month for a release, and we build up timelines according to the swimlane and process attached to it. 
+
+Now, we want to build a release management portal that can stream line this entire process in a very effective way. Below are some high level requirements and there are more requirements actually.
+
+I want to build a Release Management Portal with the following stack:
+	• Frontend: angular.js
+	• Backend: Python fastapi(REST APIs)
+	• Database: MongoDB
+The portal should implement the requirements and flows shown in the attached diagram. Here are the main features and modules:
+REQ 1: Managing Releases
+	• Ability to create releases across a calendar.
+	• Assign squads participating in the release, define scope.
+	• Create fixed versions for each release across boards.
+	• Create JIRA stories/backlog and tag to fixed versions.
+REQ 2: Track Timelines
+	• Define cut-off timelines for each release.
+	• Track progress of stories across different boards/squads/products.
+	• Identify risks/blockers for a release and decide scope beforehand.
+REQ 3: Files and Attachments
+	• Upload/sign off emails.
+	• Store SQL/UI scripts.
+	• Attach firewall requirement forms.
+	• Upload QA/Performance test results for each application.
+REQ 4: Runbook Management
+	• Create runbook per application (ChubbIO, OH, DC).
+	• Track versions and build numbers.
+	• Store details from external teams.
+	• Support stage-to-production auto promotion.
+REQ 6: Email Alerts & Notifications
+	• Send alerts for fixed versions of a release (with JIRA links).
+	• Notify cut-off dates, progress updates, and downtime notifications.
+	• Send release notes through Prodigy.
+Technical Requirements
+	• Frontend (angular ): User-friendly dashboard with forms, tables, timeline tracking, and file upload components.
+	• Backend (restapi): REST APIs for CRUD operations, authentication/authorization, and integration with JIRA API for syncing stories/versions.
+	• Database (MongoDB): Store release details, timelines, file attachments, CHG tracking info, runbooks, and notifications metadata.
