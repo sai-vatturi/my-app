@@ -1,0 +1,257 @@
+<div class="max-w-7xl mx-auto">
+  <!-- Inline Header with Controls -->
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-2 p-2.5">
+    <div class="flex items-center justify-between gap-4">
+      <!-- Left: Title -->
+      <h1 class="text-xl font-bold text-gray-900 whitespace-nowrap">Release Calendar</h1>
+      
+      <!-- Right: Navigation & Controls -->
+      <div class="flex items-center gap-3">
+        <!-- Navigation Buttons -->
+        <div class="flex items-center gap-1">
+          <button
+            (click)="previousMonth()"
+            class="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            aria-label="Previous month">
+            <lucide-icon [img]="ChevronLeft" [size]="18" class="text-gray-700"></lucide-icon>
+          </button>
+          <button
+            (click)="nextMonth()"
+            class="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            aria-label="Next month">
+            <lucide-icon [img]="ChevronRight" [size]="18" class="text-gray-700"></lucide-icon>
+          </button>
+        </div>
+
+        <!-- Month & Year Dropdowns -->
+        <div class="flex items-center gap-2">
+          <select
+            [ngModel]="currentDate().getMonth()"
+            (ngModelChange)="onMonthChange($event)"
+            class="px-2.5 py-1.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors cursor-pointer">
+            <option *ngFor="let month of months; let i = index" [value]="i">
+              {{ month }}
+            </option>
+          </select>
+
+          <select
+            [ngModel]="currentDate().getFullYear()"
+            (ngModelChange)="onYearChange($event)"
+            class="px-2.5 py-1.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors cursor-pointer">
+            <option *ngFor="let year of yearOptions" [value]="year">
+              {{ year }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Today Button -->
+        <button
+          (click)="goToToday()"
+          class="px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors whitespace-nowrap">
+          Today
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar Grid -->
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <!-- Day Headers -->
+    <div class="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
+      <div *ngFor="let day of weekDays" class="p-1.5 text-center">
+        <span class="text-xs font-semibold text-gray-700 uppercase">{{ day }}</span>
+      </div>
+    </div>
+
+    <!-- Calendar Days -->
+    <div class="grid grid-cols-7 divide-x divide-y divide-gray-200">
+      <ng-container *ngFor="let week of calendarWeeks()">
+        <div
+          *ngFor="let day of week.days"
+          [class.bg-gray-50]="!day.isCurrentMonth"
+          [class.bg-blue-50]="day.isToday"
+          class="min-h-[115px] p-1 relative hover:bg-gray-50 transition-colors">
+          
+          <!-- Day Number -->
+          <div class="flex items-center justify-between mb-1">
+            <span
+              [class.text-gray-400]="!day.isCurrentMonth"
+              [class.text-primary-600]="day.isToday"
+              [class.font-bold]="day.isToday"
+              class="text-xs font-medium">
+              {{ day.dayNumber }}
+            </span>
+            <span *ngIf="day.releases.length > 0" class="text-[10px] text-gray-500 bg-gray-200 px-1 py-0.5 rounded-full">
+              {{ day.releases.length }}
+            </span>
+          </div>
+
+          <!-- Releases -->
+          <div class="space-y-1">
+            <ng-container *ngFor="let release of day.releases.slice(0, 2); let i = index">
+              <div
+                (click)="openReleaseDetail(release)"
+                [style.background-color]="getReleaseColor(release.release_type)"
+                class="text-[10px] p-1 rounded cursor-pointer hover:shadow-md transition-shadow border border-opacity-30"
+                [class.border-blue-300]="release.release_type === 'Major release'"
+                [class.border-red-300]="release.release_type === 'Hotfix'"
+                [class.border-yellow-300]="release.release_type === 'Data patch'"
+                [class.border-purple-300]="release.release_type === 'Hotfix & Data patch'">
+                <div class="font-semibold truncate text-gray-900">{{ release.name }}</div>
+                <div class="text-gray-700 text-[9px] mt-0.5 truncate">{{ release.release_type }}</div>
+              </div>
+            </ng-container>
+            
+            <button
+              *ngIf="day.releases.length > 2"
+              (click)="showMoreReleases(day)"
+              class="text-[10px] text-primary-600 hover:text-primary-700 font-medium w-full text-left px-1">
+              +{{ day.releases.length - 2 }} more
+            </button>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+
+  <!-- Release Detail Modal -->
+  <div
+    *ngIf="selectedRelease()"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    (click)="closeReleaseDetail()">
+    <div
+      class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+      (click)="$event.stopPropagation()">
+      
+      <!-- Modal Header -->
+      <div class="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-start justify-between">
+        <div class="flex-1">
+          <h3 class="text-2xl font-bold text-gray-900">{{ selectedRelease()?.name }}</h3>
+          <div class="flex items-center gap-3 mt-2">
+            <span
+              class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
+              [style.background-color]="getReleaseColor(selectedRelease()?.release_type || '')"
+              [class.text-blue-900]="selectedRelease()?.release_type === 'Major release'"
+              [class.text-red-900]="selectedRelease()?.release_type === 'Hotfix'"
+              [class.text-yellow-900]="selectedRelease()?.release_type === 'Data patch'"
+              [class.text-purple-900]="selectedRelease()?.release_type === 'Hotfix & Data patch'">
+              <lucide-icon [img]="Tag" [size]="12" class="mr-1"></lucide-icon>
+              {{ selectedRelease()?.release_type }}
+            </span>
+            <span class="text-sm text-gray-600">
+              Status: <span class="font-medium">{{ selectedRelease()?.status }}</span>
+            </span>
+          </div>
+        </div>
+        <button
+          (click)="closeReleaseDetail()"
+          class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <lucide-icon [img]="X" [size]="20" class="text-gray-500"></lucide-icon>
+        </button>
+      </div>
+
+      <!-- Modal Content -->
+      <div class="p-6 space-y-6">
+        <!-- Release Date & Time -->
+        <div class="flex items-start gap-3">
+          <lucide-icon [img]="Calendar" [size]="20" class="text-gray-400 mt-0.5"></lucide-icon>
+          <div>
+            <div class="text-sm font-medium text-gray-700">Release Date</div>
+            <div class="text-base text-gray-900">{{ formatReleaseDate(selectedRelease()?.release_date) }}</div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div *ngIf="selectedRelease()?.description">
+          <h4 class="text-sm font-semibold text-gray-700 mb-2">Description</h4>
+          <p class="text-gray-900 leading-relaxed">{{ selectedRelease()?.description }}</p>
+        </div>
+
+        <!-- Overall Scope -->
+        <div *ngIf="selectedRelease()?.overall_scope">
+          <h4 class="text-sm font-semibold text-gray-700 mb-2">Overall Scope</h4>
+          <p class="text-gray-900 leading-relaxed">{{ selectedRelease()?.overall_scope }}</p>
+        </div>
+
+        <!-- Release Info -->
+        <div class="grid grid-cols-2 gap-4">
+          <div *ngIf="selectedRelease()?.jira_release_version">
+            <div class="text-sm font-medium text-gray-700">JIRA Release Version</div>
+            <div class="text-gray-900 mt-1">{{ selectedRelease()?.jira_release_version }}</div>
+          </div>
+          <div *ngIf="selectedRelease()?.chg_number">
+            <div class="text-sm font-medium text-gray-700">Change Number</div>
+            <div class="text-gray-900 mt-1">{{ selectedRelease()?.chg_number }}</div>
+          </div>
+        </div>
+
+        <!-- Products -->
+        <div *ngIf="selectedRelease()?.products && selectedRelease()!.products.length > 0">
+          <h4 class="text-sm font-semibold text-gray-700 mb-3">Products ({{ selectedRelease()!.products.length }})</h4>
+          <div class="space-y-3">
+            <div
+              *ngFor="let product of selectedRelease()!.products"
+              class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div class="font-medium text-gray-900">{{ getProductName(product.product_id) }}</div>
+              <div *ngIf="product.pocs && product.pocs.length > 0" class="text-sm text-gray-600 mt-1">
+                POCs: {{ product.pocs.join(', ') }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3 pt-4 border-t border-gray-200">
+          <a
+            [routerLink]="['/releases', getReleaseId(selectedRelease())]"
+            class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium text-center transition-colors">
+            View Full Details
+          </a>
+          <a
+            [routerLink]="['/releases', getReleaseId(selectedRelease()), 'edit']"
+            class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium text-center transition-colors">
+            Edit Release
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- More Releases Modal -->
+  <div
+    *ngIf="moreReleasesDay()"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    (click)="closeMoreReleases()">
+    <div
+      class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
+      (click)="$event.stopPropagation()">
+      
+      <div class="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-900">
+          Releases on {{ formatDate(moreReleasesDay()?.date) }}
+        </h3>
+        <button
+          (click)="closeMoreReleases()"
+          class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <lucide-icon [img]="X" [size]="20" class="text-gray-500"></lucide-icon>
+        </button>
+      </div>
+
+      <div class="p-4 space-y-2">
+        <div
+          *ngFor="let release of moreReleasesDay()?.releases"
+          (click)="openReleaseDetail(release)"
+          [style.background-color]="getReleaseColor(release.release_type)"
+          class="p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow border border-opacity-30"
+          [class.border-blue-300]="release.release_type === 'Major release'"
+          [class.border-red-300]="release.release_type === 'Hotfix'"
+          [class.border-yellow-300]="release.release_type === 'Data patch'"
+          [class.border-purple-300]="release.release_type === 'Hotfix & Data patch'">
+          <div class="font-semibold text-gray-900">{{ release.name }}</div>
+          <div class="text-sm text-gray-700 mt-1">{{ release.release_type }}</div>
+          <div class="text-xs text-gray-600 mt-1">{{ formatReleaseDate(release.release_date) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
