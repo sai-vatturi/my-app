@@ -84,32 +84,4 @@ export class ReleaseService {
       })
     );
   }
-
-  updateProductWorkflowState(releaseId: string, productId: string, stageIndex: number, attachments?: string[]): Observable<Release> {
-    const payload = {
-      stage_index: stageIndex,
-      attachments: attachments
-    };
-    return this.api.put<Release>(`/releases/${releaseId}/products/${productId}/workflow-state`, payload).pipe(
-      tap(updatedRelease => {
-        this.releasesSignal.update(releases =>
-          releases.map(r => r.id === releaseId ? updatedRelease : r)
-        );
-      })
-    );
-  }
-
-  updateStageDate(releaseId: string, productId: string, stageIndex: number, stageDate: Date): Observable<Release> {
-    const payload = {
-      stage_index: stageIndex,
-      stage_date: stageDate.toISOString()
-    };
-    return this.api.put<Release>(`/releases/${releaseId}/products/${productId}/stage-date`, payload).pipe(
-      tap(updatedRelease => {
-        this.releasesSignal.update(releases =>
-          releases.map(r => r.id === releaseId ? updatedRelease : r)
-        );
-      })
-    );
-  }
 }

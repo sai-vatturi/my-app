@@ -45,13 +45,12 @@ class ReleaseBase(BaseModel):
     name: str
     description: Optional[str] = None
     release_date: datetime
-    release_type: ReleaseType = ReleaseType.MAJOR_RELEASE  # Type of release to determine workflow
+    release_type: ReleaseType = ReleaseType.MAJOR_RELEASE
     status: str = "planned"  # planned, in_progress, completed, cancelled
     overall_scope: Optional[str] = None
     jira_release_version: Optional[str] = None  # Optional field
     chg_number: Optional[str] = None  # Change Request number
-    products: List[ReleaseProduct] = Field(default_factory=list)  # Products participating in this release with their details
-    workflow_id: Optional[str] = None  # Selected workflow for this release
+    products: List[ReleaseProduct] = Field(default_factory=list)
 
 class ReleaseCreate(ReleaseBase):
     pass
@@ -66,12 +65,9 @@ class ReleaseUpdate(BaseModel):
     jira_release_version: Optional[str] = None
     chg_number: Optional[str] = None
     products: Optional[List[ReleaseProduct]] = None
-    workflow_id: Optional[str] = None
-    product_workflow_states: Optional[dict] = None
 
 class ReleaseResponse(ReleaseBase):
     id: PyObjectId = Field(alias="_id")
-    product_workflow_states: dict = Field(default_factory=dict)  # Workflow states for each product
     created_at: datetime
     updated_at: datetime
 

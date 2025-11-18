@@ -4,10 +4,8 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormArray } fr
 import { Router, ActivatedRoute } from '@angular/router';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
-import { WorkflowService } from '../../../core/services/workflow.service';
 import { ReleaseCreate, ReleaseUpdate, ReleaseType } from '../../../core/models/release.model';
 import { Product } from '../../../core/models/product.model';
-import { Workflow } from '../../../core/models/workflow.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
@@ -27,7 +25,6 @@ export class ReleaseFormComponent implements OnInit {
   submitting = signal(false);
   error = signal<string | null>(null);
   availableProducts = signal<Product[]>([]);
-  availableWorkflows = signal<Workflow[]>([]);
   
   releaseTypes = Object.values(ReleaseType);
 
@@ -35,7 +32,6 @@ export class ReleaseFormComponent implements OnInit {
     private fb: FormBuilder,
     private releaseService: ReleaseService,
     private productService: ProductService,
-    private workflowService: WorkflowService,
     private router: Router,
     private route: ActivatedRoute
   ) {
@@ -48,14 +44,12 @@ export class ReleaseFormComponent implements OnInit {
       chg_number: [''],
       jira_release_version: [''],
       overall_scope: [''],
-      workflow_id: [''],
       products: this.fb.array([])
     });
   }
 
   ngOnInit(): void {
     this.loadProducts();
-    this.loadWorkflows();
     this.releaseId = this.route.snapshot.paramMap.get('id');
     this.isEdit = !!this.releaseId;
     if (this.isEdit && this.releaseId) this.loadRelease(this.releaseId);
@@ -75,13 +69,6 @@ export class ReleaseFormComponent implements OnInit {
     this.productService.getAll().subscribe({
       next: (products) => this.availableProducts.set(products),
       error: (err) => this.error.set('Failed to load products')
-    });
-  }
-
-  loadWorkflows(): void {
-    this.workflowService.getAll().subscribe({
-      next: (workflows) => this.availableWorkflows.set(workflows),
-      error: (err) => this.error.set('Failed to load workflows')
     });
   }
 

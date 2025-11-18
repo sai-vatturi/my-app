@@ -22,19 +22,6 @@
       </div>
     </div>
 
-    <!-- Workflow Visualization -->
-    <div *ngIf="release()" class="bg-white rounded-xl shadow-md p-8 border border-gray-100">
-      <h2 class="text-xl font-semibold mb-6">Release Workflow</h2>
-      <app-release-workflow 
-        [releaseData]="workflowData()" 
-        [release]="release()!"
-        [workflow]="workflow"
-        (advanceStage)="advanceStage($event)"
-        (editStageDate)="editStageDate($event.productId, $event.stageIndex)"
-        (addAttachment)="addAttachment($event.productId, $event.stageIndex)">
-      </app-release-workflow>
-    </div>
-
     <!-- Details Grid -->
     <div *ngIf="release()" class="grid grid-cols-1 md:grid-cols-2 gap-8">
       <!-- Release Info -->

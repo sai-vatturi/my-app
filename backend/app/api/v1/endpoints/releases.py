@@ -79,33 +79,3 @@ async def delete_release(release_id: str, db = Depends(get_database)):
     if not success:
         raise HTTPException(status_code=404, detail="Release not found")
     return {"message": "Release deleted successfully"}
-
-@router.put("/{release_id}/products/{product_id}/workflow-state")
-async def update_product_workflow_state(
-    release_id: str,
-    product_id: str,
-    stage_index: int,
-    attachments: Optional[List[str]] = None,
-    db = Depends(get_database)
-):
-    """Update the workflow state for a specific product in a release"""
-    service = ReleaseService(db)
-    release = await service.update_product_workflow_state(release_id, product_id, stage_index, attachments)
-    if not release:
-        raise HTTPException(status_code=404, detail="Release not found")
-    return release
-
-@router.put("/{release_id}/products/{product_id}/stage-date")
-async def update_stage_date(
-    release_id: str,
-    product_id: str,
-    stage_index: int,
-    stage_date: datetime,
-    db = Depends(get_database)
-):
-    """Update the date for a specific stage of a product"""
-    service = ReleaseService(db)
-    release = await service.update_stage_date(release_id, product_id, stage_index, stage_date)
-    if not release:
-        raise HTTPException(status_code=404, detail="Release not found")
-    return release

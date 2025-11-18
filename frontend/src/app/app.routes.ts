@@ -16,18 +16,6 @@ export const routes: Routes = [
         loadComponent: () => import('./features/releases/release-calendar/release-calendar.component').then(m => m.ReleaseCalendarComponent)
       },
       {
-        path: 'workflows',
-        loadComponent: () => import('./features/workflows/workflow-list/workflow-list.component').then(m => m.WorkflowListComponent)
-      },
-      {
-        path: 'workflows/create',
-        loadComponent: () => import('./features/workflows/workflow-form/workflow-form.component').then(m => m.WorkflowFormComponent)
-      },
-      {
-        path: 'workflows/:id/edit',
-        loadComponent: () => import('./features/workflows/workflow-form/workflow-form.component').then(m => m.WorkflowFormComponent)
-      },
-      {
         path: 'products',
         loadComponent: () => import('./features/products/product-list/product-list.component').then(m => m.ProductListComponent)
       },

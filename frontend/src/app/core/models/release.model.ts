@@ -1,5 +1,3 @@
-import { ProductWorkflowState } from './workflow.model';
-
 export enum ReleaseType {
   MAJOR_RELEASE = 'Major release',
   HOTFIX = 'Hotfix',
@@ -30,9 +28,7 @@ export interface Release {
   overall_scope?: string;
   jira_release_version?: string;
   chg_number?: string;
-  products: ReleaseProduct[];
-  workflow_id?: string;
-  product_workflow_states: { [productId: string]: ProductWorkflowState };
+  products: ReleaseProduct[];  // Products in the release
   created_at: string;
   updated_at: string;
 }
@@ -47,7 +43,6 @@ export interface ReleaseCreate {
   jira_release_version?: string;
   chg_number?: string;
   products?: ReleaseProduct[];
-  workflow_id?: string;
 }
 
 export interface ReleaseUpdate {
@@ -60,16 +55,4 @@ export interface ReleaseUpdate {
   jira_release_version?: string;
   chg_number?: string;
   products?: ReleaseProduct[];
-  workflow_id?: string;
-  product_workflow_states?: { [productId: string]: ProductWorkflowState };
-}
-
-// Workflow visualization models
-export type NodeType = 'system' | 'release' | 'env' | 'sub-release' | 'test' | 'stage';
-
-export interface ReleaseNode {
-  id: string;
-  label: string;
-  type: NodeType;
-  children?: ReleaseNode[];
 }

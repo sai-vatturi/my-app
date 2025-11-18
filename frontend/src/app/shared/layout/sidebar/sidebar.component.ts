@@ -1,7 +1,7 @@
 import { Component, ChangeDetectionStrategy, signal, effect, Injector, PLATFORM_ID, inject } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { LucideAngularModule, Package, Users, Rocket, ChevronLeft, ChevronRight, LayoutDashboard, Calendar, Workflow } from 'lucide-angular';
+import { LucideAngularModule, Package, Users, Rocket, ChevronLeft, ChevronRight, LayoutDashboard, Calendar } from 'lucide-angular';
 
 interface NavItem {
   path: string;
@@ -33,7 +33,6 @@ export class SidebarComponent {
   readonly ChevronRight = ChevronRight;
   readonly LayoutDashboard = LayoutDashboard;
   readonly Calendar = Calendar;
-  readonly Workflow = Workflow;
 
   // Reactive state with signal
   isCollapsed = signal<boolean>(this.loadCollapsedState());
@@ -41,7 +40,6 @@ export class SidebarComponent {
   navItems: NavItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/calendar', label: 'Calendar', icon: Calendar },
-    { path: '/workflows', label: 'Workflows', icon: Workflow },
     { path: '/products', label: 'Products', icon: Package },
     { path: '/squads', label: 'Squads', icon: Users },
     { path: '/releases', label: 'Releases', icon: Rocket }

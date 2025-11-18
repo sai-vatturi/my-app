@@ -13,9 +13,8 @@ class Release:
         self.overall_scope = kwargs.get('overall_scope')
         self.jira_release_version = kwargs.get('jira_release_version')
         self.chg_number = kwargs.get('chg_number')
+        # Products in the release
         self.products = kwargs.get('products', [])
-        self.workflow_id = kwargs.get('workflow_id')
-        self.product_workflow_states = kwargs.get('product_workflow_states', {})
         self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
         self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
@@ -31,8 +30,6 @@ class Release:
             'jira_release_version': self.jira_release_version,
             'chg_number': self.chg_number,
             'products': self.products,
-            'workflow_id': self.workflow_id,
-            'product_workflow_states': self.product_workflow_states,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
