@@ -1,0 +1,28 @@
+<div class="workflow-d3-container relative">
+  <div #chartContainer class="chart-container"></div>
+  <div class="toolbar absolute top-4 right-4 flex gap-2 bg-white rounded-lg shadow-lg p-2 border border-gray-200">
+    <button 
+      (click)="zoomIn()"
+      class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm font-medium transition-colors">
+      ＋
+    </button>
+    <button 
+      (click)="zoomOut()"
+      class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm font-medium transition-colors">
+      －
+    </button>
+    <button 
+      (click)="fitToScreen()"
+      class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm font-medium transition-colors">
+      ⬜
+    </button>
+    <button 
+      (click)="toggleLock()"
+      [class.bg-green-50]="isLocked()"
+      [class.text-green-700]="isLocked()"
+      class="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded text-sm font-medium transition-colors">
+      {{ isLocked() ? '🔒' : '🔓' }}
+    </button>
+  </div>
+</div>
+

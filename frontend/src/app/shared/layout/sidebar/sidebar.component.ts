@@ -1,7 +1,7 @@
 import { Component, ChangeDetectionStrategy, signal, effect, Injector, PLATFORM_ID, inject } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { LucideAngularModule, Package, Users, Rocket, ChevronLeft, ChevronRight, LayoutDashboard, Calendar } from 'lucide-angular';
+import { LucideAngularModule, Package, Users, Rocket, ChevronLeft, ChevronRight, LayoutDashboard, Calendar, GitBranch } from 'lucide-angular';
 
 interface NavItem {
   path: string;
@@ -33,6 +33,7 @@ export class SidebarComponent {
   readonly ChevronRight = ChevronRight;
   readonly LayoutDashboard = LayoutDashboard;
   readonly Calendar = Calendar;
+  readonly GitBranch = GitBranch;
 
   // Reactive state with signal
   isCollapsed = signal<boolean>(this.loadCollapsedState());
@@ -42,16 +43,42 @@ export class SidebarComponent {
     { path: '/calendar', label: 'Calendar', icon: Calendar },
     { path: '/products', label: 'Products', icon: Package },
     { path: '/squads', label: 'Squads', icon: Users },
-    { path: '/releases', label: 'Releases', icon: Rocket }
+    { path: '/releases', label: 'Releases', icon: Rocket },
+    { path: '/workflows', label: 'Workflows', icon: GitBranch }
   ];
 
   constructor() {
+    // Auto-collapse on mobile
+    if (isPlatformBrowser(this.platformId)) {
+      this.checkMobileView();
+      window.addEventListener('resize', () => this.checkMobileView());
+    }
+    
     // Persist state changes to localStorage
     effect(() => {
       if (isPlatformBrowser(this.platformId)) {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.isCollapsed()));
       }
     }, { injector: this.injector });
+  }
+
+  private checkMobileView(): void {
+    if (window.innerWidth < 768) { // md breakpoint - mobile
+      // On mobile, always collapsed (small view)
+      this.isCollapsed.set(true);
+    } else {
+      // On desktop, always expanded by default (unless user manually collapsed)
+      // Only use saved state if it was explicitly set by user
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (stored) {
+        const saved = JSON.parse(stored);
+        // Only restore if it was explicitly set (not from mobile auto-collapse)
+        this.isCollapsed.set(saved);
+      } else {
+        // Default to expanded on desktop
+        this.isCollapsed.set(false);
+      }
+    }
   }
 
   toggleSidebar(): void {
@@ -61,7 +88,9 @@ export class SidebarComponent {
   private loadCollapsedState(): boolean {
     if (isPlatformBrowser(this.platformId)) {
       const stored = localStorage.getItem(this.STORAGE_KEY);
-      return stored ? JSON.parse(stored) : false; // Default to expanded
+      // On desktop, default to expanded (false = not collapsed)
+      // On mobile, will be set to true by checkMobileView
+      return stored ? JSON.parse(stored) : false;
     }
     return false;
   }

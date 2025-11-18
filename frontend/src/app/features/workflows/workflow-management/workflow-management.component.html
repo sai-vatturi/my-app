@@ -1,0 +1,143 @@
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-900">Workflow Management</h1>
+    <p class="text-gray-600 mt-2">Manage workflow templates for different release types</p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Sidebar -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-xl shadow-md border border-gray-100 sticky top-4">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <div class="flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-900">Workflows</h2>
+            <button 
+              (click)="createNewWorkflow()"
+              class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium">
+              + New
+            </button>
+          </div>
+        </div>
+        
+        <div class="divide-y divide-gray-200 max-h-[calc(100vh-200px)] overflow-y-auto">
+          <!-- Default Workflows -->
+          <div class="p-4">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Default Workflows</h3>
+            <div class="space-y-1">
+              <button
+                *ngFor="let workflow of defaultWorkflows()"
+                (click)="selectWorkflow(workflow)"
+                [class.bg-blue-50]="selectedWorkflow()?._id === workflow._id || selectedWorkflow()?.id === workflow.id"
+                [class.border-blue-300]="selectedWorkflow()?._id === workflow._id || selectedWorkflow()?.id === workflow.id"
+                class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm border-2"
+                [class.border-transparent]="selectedWorkflow()?._id !== workflow._id && selectedWorkflow()?.id !== workflow.id">
+                <div class="font-medium text-gray-900">{{ workflow.name }}</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ workflow.release_type }}</div>
+                <div class="text-xs text-gray-400 mt-0.5">Read-only</div>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Custom Workflows -->
+          <div class="p-4" *ngIf="customWorkflows().length > 0">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Custom Workflows</h3>
+            <div class="space-y-1">
+              <button
+                *ngFor="let workflow of customWorkflows()"
+                (click)="selectWorkflow(workflow)"
+                [class.bg-blue-50]="selectedWorkflow()?._id === workflow._id || selectedWorkflow()?.id === workflow.id"
+                [class.border-blue-300]="selectedWorkflow()?._id === workflow._id || selectedWorkflow()?.id === workflow.id"
+                class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm border-2"
+                [class.border-transparent]="selectedWorkflow()?._id !== workflow._id && selectedWorkflow()?.id !== workflow.id">
+                <div class="font-medium text-gray-900">{{ workflow.name }}</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ workflow.release_type }}</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="lg:col-span-3">
+      <app-loading-spinner *ngIf="loading()" />
+      <app-alert *ngIf="error()" [message]="error()!" type="error" />
+
+      <!-- Workflow Details View -->
+      <div *ngIf="selectedWorkflow() && !showCreateForm()" class="space-y-6">
+        <div class="bg-white rounded-xl shadow-md p-8 border border-gray-100">
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-900">{{ selectedWorkflow()!.name }}</h2>
+            <p class="text-sm text-gray-600 mt-1">Release Type: {{ selectedWorkflow()!.release_type }}</p>
+            <p *ngIf="selectedWorkflow()!.is_default" class="text-xs text-gray-500 mt-1">Default workflow (read-only)</p>
+          </div>
+
+          <!-- Edit/Delete Buttons (only for custom workflows) -->
+          <div *ngIf="!selectedWorkflow()!.is_default" class="flex gap-3 mb-6">
+            <button 
+              (click)="editWorkflow(selectedWorkflow()!)"
+              class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
+              Edit Workflow
+            </button>
+            <button 
+              (click)="deleteWorkflow(selectedWorkflow()!)"
+              class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium">
+              Delete Workflow
+            </button>
+          </div>
+        </div>
+
+        <!-- D3 Workflow Visualization -->
+        <div class="bg-white rounded-xl shadow-md p-8 border border-gray-100">
+          <h3 class="text-lg font-semibold mb-4">Workflow Visualization</h3>
+          <app-workflow-d3-chart
+            [workflow]="selectedWorkflow()!"
+            [productMap]="emptyProductMap">
+          </app-workflow-d3-chart>
+        </div>
+
+        <!-- Workflow Stages Details -->
+        <div class="bg-white rounded-xl shadow-md p-8 border border-gray-100">
+          <h3 class="text-lg font-semibold mb-4">Stage Details</h3>
+          <div class="space-y-4">
+            <div *ngFor="let stage of sortedStages()" class="border border-gray-200 rounded-lg p-4">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <h4 class="font-semibold text-gray-900">{{ stage.name }}</h4>
+                  <p *ngIf="stage.description" class="text-sm text-gray-600 mt-1">{{ stage.description }}</p>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span class="text-xs text-gray-500">Order: {{ stage.order }}</span>
+                    <span *ngIf="stage.default_days_before_release > 0" class="text-xs text-blue-600">
+                      {{ stage.default_days_before_release }} days before release
+                    </span>
+                    <span *ngIf="stage.requires_attachment" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                      Requires Attachment
+                    </span>
+                    <span *ngIf="stage.attachment_mandatory" class="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded">
+                      Mandatory
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Create/Edit Form -->
+      <div *ngIf="showCreateForm() || editingWorkflow()" class="bg-white rounded-xl shadow-md p-8 border border-gray-100">
+        <app-workflow-editor
+          [workflow]="editingWorkflow()"
+          (saved)="onWorkflowSaved($event)"
+          (cancelled)="onWorkflowCancelled()">
+        </app-workflow-editor>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="!selectedWorkflow() && !showCreateForm()" class="bg-white rounded-xl shadow-md p-12 border border-gray-100 text-center">
+        <p class="text-gray-500">Select a workflow from the sidebar to view its details</p>
+      </div>
+    </div>
+  </div>
+</div>
+

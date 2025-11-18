@@ -5,6 +5,8 @@ export enum ReleaseType {
   HOTFIX_DATA_PATCH = 'Hotfix & Data patch'
 }
 
+import { WorkflowStageState } from './workflow.model';
+
 export interface FixedVersionInfo {
   fixed_version: string;
   jira_board_id: string;
@@ -15,6 +17,7 @@ export interface ReleaseProduct {
   scope_description?: string;
   pocs: string[];
   fixed_versions: FixedVersionInfo[];
+  workflow_states?: { [key: string]: WorkflowStageState };
 }
 
 export interface Release {

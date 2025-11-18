@@ -84,4 +84,67 @@ export class ReleaseService {
       })
     );
   }
+
+  advanceProductStage(releaseId: string, productId: string): Observable<Release> {
+    return this.api.post<Release>(
+      `/releases/${releaseId}/products/${productId}/advance-stage`,
+      {}
+    ).pipe(
+      tap(updatedRelease => {
+        this.releasesSignal.update(releases =>
+          releases.map(r => (r.id === releaseId || r._id === releaseId) ? updatedRelease : r)
+        );
+      })
+    );
+  }
+
+  uploadStageAttachment(
+    releaseId: string,
+    productId: string,
+    stageOrder: number,
+    file: File
+  ): Observable<Release> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return this.api.post<Release>(
+      `/releases/${releaseId}/products/${productId}/stages/${stageOrder}/attachment`,
+      formData
+    ).pipe(
+      tap(updatedRelease => {
+        this.releasesSignal.update(releases =>
+          releases.map(r => (r.id === releaseId || r._id === releaseId) ? updatedRelease : r)
+        );
+      })
+    );
+  }
+
+  updateStageTimeline(
+    releaseId: string,
+    stageOrder: number,
+    daysBeforeRelease?: number,
+    productId?: string,
+    deadline?: Date
+  ): Observable<Release> {
+    const data: any = {
+      product_id: productId || null
+    };
+    
+    if (deadline) {
+      data.deadline = deadline.toISOString();
+    } else if (daysBeforeRelease !== undefined) {
+      data.days_before_release = daysBeforeRelease;
+    }
+    
+    return this.api.put<Release>(
+      `/releases/${releaseId}/stages/${stageOrder}/timeline`,
+      data
+    ).pipe(
+      tap(updatedRelease => {
+        this.releasesSignal.update(releases =>
+          releases.map(r => (r.id === releaseId || r._id === releaseId) ? updatedRelease : r)
+        );
+      })
+    );
+  }
 }

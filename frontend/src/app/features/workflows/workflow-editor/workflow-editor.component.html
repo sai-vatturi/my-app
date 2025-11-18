@@ -1,0 +1,146 @@
+<div class="space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold text-gray-900">{{ workflow ? 'Edit' : 'Create' }} Workflow</h2>
+    <p class="text-sm text-gray-600 mt-1">{{ workflow ? 'Modify workflow stages and settings' : 'Define a new workflow template' }}</p>
+  </div>
+
+  <app-alert *ngIf="error()" [message]="error()!" type="error" />
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-6">
+    <!-- Basic Info -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+          Workflow Name <span class="text-red-500">*</span>
+        </label>
+        <input
+          id="name"
+          type="text"
+          formControlName="name"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          placeholder="e.g., Custom Release Workflow">
+      </div>
+      <div>
+        <label for="release_type" class="block text-sm font-medium text-gray-700 mb-1">
+          Release Type <span class="text-red-500">*</span>
+        </label>
+        <input
+          id="release_type"
+          type="text"
+          formControlName="release_type"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          placeholder="e.g., Custom Release">
+      </div>
+    </div>
+
+    <!-- Stages -->
+    <div>
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Stages</h3>
+        <button
+          type="button"
+          (click)="addStage()"
+          class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium">
+          + Add Stage
+        </button>
+      </div>
+
+      <div formArrayName="stages" class="space-y-4">
+        <div
+          *ngFor="let stage of stages.controls; let i = index"
+          [formGroupName]="i"
+          class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div class="flex justify-between items-start mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-semibold text-gray-700">Stage {{ i + 1 }}</span>
+            </div>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                (click)="moveStageUp(i)"
+                [disabled]="i === 0"
+                class="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50">
+                ↑
+              </button>
+              <button
+                type="button"
+                (click)="moveStageDown(i)"
+                [disabled]="i === stages.length - 1"
+                class="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50">
+                ↓
+              </button>
+              <button
+                type="button"
+                (click)="removeStage(i)"
+                class="text-xs px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded">
+                Remove
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Stage Name <span class="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                formControlName="name"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., Development Complete">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Days Before Release <span class="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                formControlName="default_days_before_release"
+                min="0"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              formControlName="description"
+              rows="2"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Stage description..."></textarea>
+          </div>
+
+          <div class="flex gap-6">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                formControlName="requires_attachment"
+                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+              <span class="text-sm text-gray-700">Requires Attachment</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                formControlName="attachment_mandatory"
+                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+              <span class="text-sm text-gray-700">Attachment Mandatory</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <p *ngIf="stages.length === 0" class="text-sm text-gray-500 text-center py-4">
+        No stages added. Click "Add Stage" to create workflow stages.
+      </p>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-4 pt-4 border-t">
+      <app-button type="submit" [disabled]="form.invalid || submitting()" [loading]="submitting()">
+        {{ workflow ? 'Update' : 'Create' }} Workflow
+      </app-button>
+      <app-button type="button" variant="secondary" (clicked)="onCancel()">Cancel</app-button>
+    </div>
+  </form>
+</div>
+

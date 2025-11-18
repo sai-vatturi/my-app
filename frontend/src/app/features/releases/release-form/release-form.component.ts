@@ -4,8 +4,10 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormArray } fr
 import { Router, ActivatedRoute } from '@angular/router';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
+import { WorkflowService } from '../../../core/services/workflow.service';
 import { ReleaseCreate, ReleaseUpdate, ReleaseType } from '../../../core/models/release.model';
 import { Product } from '../../../core/models/product.model';
+import { WorkflowTemplate } from '../../../core/models/workflow.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
@@ -25,13 +27,14 @@ export class ReleaseFormComponent implements OnInit {
   submitting = signal(false);
   error = signal<string | null>(null);
   availableProducts = signal<Product[]>([]);
-  
-  releaseTypes = Object.values(ReleaseType);
+  availableWorkflows = signal<WorkflowTemplate[]>([]);
+  releaseTypes = signal<string[]>([]);
 
   constructor(
     private fb: FormBuilder,
     private releaseService: ReleaseService,
     private productService: ProductService,
+    private workflowService: WorkflowService,
     private router: Router,
     private route: ActivatedRoute
   ) {
@@ -50,9 +53,29 @@ export class ReleaseFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadProducts();
+    this.loadWorkflows();
     this.releaseId = this.route.snapshot.paramMap.get('id');
     this.isEdit = !!this.releaseId;
     if (this.isEdit && this.releaseId) this.loadRelease(this.releaseId);
+  }
+
+  loadWorkflows(): void {
+    this.workflowService.getAll().subscribe({
+      next: (workflows) => {
+        this.availableWorkflows.set(workflows);
+        const types = workflows.map(w => w.release_type);
+        this.releaseTypes.set(types);
+        // Set default if form is empty
+        if (!this.isEdit && types.length > 0 && !this.form.get('release_type')?.value) {
+          this.form.patchValue({ release_type: types[0] });
+        }
+      },
+      error: (err) => {
+        console.error('Failed to load workflows:', err);
+        // Fallback to enum values if workflow service fails
+        this.releaseTypes.set(Object.values(ReleaseType));
+      }
+    });
   }
 
   get products(): FormArray { return this.form.get('products') as FormArray; }
@@ -82,6 +105,18 @@ export class ReleaseFormComponent implements OnInit {
   }
 
   removeProduct(index: number): void { this.products.removeAt(index); }
+
+  getAvailableProductsForIndex(index: number): Product[] {
+    const currentProductId = this.products.at(index)?.get('product_id')?.value;
+    const selectedProductIds = this.products.controls
+      .map((control, i) => i !== index ? control.get('product_id')?.value : null)
+      .filter(id => id);
+    
+    return this.availableProducts().filter(product => {
+      const productId = product.id || product._id;
+      return !selectedProductIds.includes(productId) || productId === currentProductId;
+    });
+  }
 
   addPoc(productIndex: number): void {
     this.getPocsArray(productIndex).push(this.fb.control(''));

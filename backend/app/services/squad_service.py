@@ -24,7 +24,7 @@ class SquadService:
         return squad
 
     async def create_squad(self, squad_data: SquadCreate) -> dict:
-        """Create a new squad"""
+        """Create a new squad and update related products"""
         squad = Squad(
             name=squad_data.name,
             description=squad_data.description,
@@ -35,11 +35,35 @@ class SquadService:
         
         result = await self.collection.insert_one(squad.to_dict())
         created_squad = await self.collection.find_one({"_id": result.inserted_id})
+        squad_id = str(created_squad["_id"])
+        
+        # Update products to include this squad (two-way relationship)
+        if squad_data.products:
+            from app.services.product_service import ProductService
+            product_service = ProductService(self.db)
+            for product_id in squad_data.products:
+                product = await product_service.get_product_by_id(product_id)
+                if product:
+                    squads = product.get("squads", [])
+                    if squad_id not in squads:
+                        squads.append(squad_id)
+                        await self.db.products.update_one(
+                            {"_id": ObjectId(product_id)},
+                            {"$set": {"squads": squads, "updated_at": datetime.now(timezone.utc)}}
+                        )
+        
         return created_squad
 
     async def update_squad(self, squad_id: str, squad_data: SquadUpdate) -> Optional[dict]:
-        """Update an existing squad"""
+        """Update an existing squad and maintain two-way relationship with products"""
+        existing_squad = await self.collection.find_one({"_id": ObjectId(squad_id)})
+        if not existing_squad:
+            return None
+        
+        old_products = set(existing_squad.get("products", []))
         update_data = squad_data.model_dump(exclude_none=True)
+        new_products = set(update_data.get("products", old_products)) if "products" in update_data else old_products
+        
         if update_data:
             update_data["updated_at"] = datetime.now(timezone.utc)
             await self.collection.update_one(
@@ -47,10 +71,55 @@ class SquadService:
                 {"$set": update_data}
             )
         
+        # Update product relationships (two-way)
+        from app.services.product_service import ProductService
+        product_service = ProductService(self.db)
+        
+        # Remove squad from products that are no longer associated
+        removed_products = old_products - new_products
+        for product_id in removed_products:
+            product = await product_service.get_product_by_id(product_id)
+            if product:
+                squads = product.get("squads", [])
+                if squad_id in squads:
+                    squads.remove(squad_id)
+                    await self.db.products.update_one(
+                        {"_id": ObjectId(product_id)},
+                        {"$set": {"squads": squads, "updated_at": datetime.now(timezone.utc)}}
+                    )
+        
+        # Add squad to new products
+        added_products = new_products - old_products
+        for product_id in added_products:
+            product = await product_service.get_product_by_id(product_id)
+            if product:
+                squads = product.get("squads", [])
+                if squad_id not in squads:
+                    squads.append(squad_id)
+                    await self.db.products.update_one(
+                        {"_id": ObjectId(product_id)},
+                        {"$set": {"squads": squads, "updated_at": datetime.now(timezone.utc)}}
+                    )
+        
         updated_squad = await self.collection.find_one({"_id": ObjectId(squad_id)})
         return updated_squad
 
     async def delete_squad(self, squad_id: str) -> bool:
-        """Delete a squad"""
+        """Delete a squad and remove it from related products"""
+        squad = await self.collection.find_one({"_id": ObjectId(squad_id)})
+        if squad:
+            # Remove squad from all associated products
+            products = squad.get("products", [])
+            for product_id in products:
+                product = await self.db.products.find_one({"_id": ObjectId(product_id)})
+                if product:
+                    squads = product.get("squads", [])
+                    if squad_id in squads:
+                        squads.remove(squad_id)
+                        await self.db.products.update_one(
+                            {"_id": ObjectId(product_id)},
+                            {"$set": {"squads": squads, "updated_at": datetime.now(timezone.utc)}}
+                        )
+        
         result = await self.collection.delete_one({"_id": ObjectId(squad_id)})
         return result.deleted_count > 0

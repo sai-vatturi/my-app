@@ -21,26 +21,31 @@ export class ApiService {
         }
       });
     }
-    return this.http.get<T>(`${this.baseUrl}${endpoint}`, { params: httpParams }).pipe(
+    // Ensure endpoint starts with / and doesn't have trailing slash (except root)
+    const normalizedEndpoint = endpoint === '/' ? '/' : endpoint.replace(/\/$/, '');
+    return this.http.get<T>(`${this.baseUrl}${normalizedEndpoint}`, { params: httpParams }).pipe(
       retry(1),
       catchError(this.handleError)
     );
   }
 
   post<T>(endpoint: string, data: any): Observable<T> {
-    return this.http.post<T>(`${this.baseUrl}${endpoint}`, data).pipe(
+    const normalizedEndpoint = endpoint === '/' ? '/' : endpoint.replace(/\/$/, '');
+    return this.http.post<T>(`${this.baseUrl}${normalizedEndpoint}`, data).pipe(
       catchError(this.handleError)
     );
   }
 
   put<T>(endpoint: string, data: any): Observable<T> {
-    return this.http.put<T>(`${this.baseUrl}${endpoint}`, data).pipe(
+    const normalizedEndpoint = endpoint === '/' ? '/' : endpoint.replace(/\/$/, '');
+    return this.http.put<T>(`${this.baseUrl}${normalizedEndpoint}`, data).pipe(
       catchError(this.handleError)
     );
   }
 
   delete<T>(endpoint: string): Observable<T> {
-    return this.http.delete<T>(`${this.baseUrl}${endpoint}`).pipe(
+    const normalizedEndpoint = endpoint === '/' ? '/' : endpoint.replace(/\/$/, '');
+    return this.http.delete<T>(`${this.baseUrl}${normalizedEndpoint}`).pipe(
       catchError(this.handleError)
     );
   }

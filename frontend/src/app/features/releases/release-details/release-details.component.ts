@@ -3,16 +3,21 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
+import { WorkflowService } from '../../../core/services/workflow.service';
 import { Release } from '../../../core/models/release.model';
 import { Product } from '../../../core/models/product.model';
+import { WorkflowTemplate } from '../../../core/models/workflow.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
+import { WorkflowProgressComponent } from '../../../shared/components/workflow-progress/workflow-progress.component';
+import { WorkflowD3ChartComponent } from '../../../shared/components/workflow-d3-chart/workflow-d3-chart.component';
+import { TimelineEditorV2Component } from '../../../shared/components/timeline-editor-v2/timeline-editor-v2.component';
 
 @Component({
   selector: 'app-release-details',
   standalone: true,
-  imports: [CommonModule, RouterModule, LoadingSpinnerComponent, AlertComponent, ButtonComponent],
+  imports: [CommonModule, RouterModule, LoadingSpinnerComponent, AlertComponent, ButtonComponent, WorkflowProgressComponent, WorkflowD3ChartComponent, TimelineEditorV2Component],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './release-details.component.html',
   })
@@ -23,12 +28,14 @@ export class ReleaseDetailsComponent implements OnInit {
   products = signal<Product[]>([]);
   productMap = new Map<string, string>();
   expandedScopes = new Set<number>(); // Track which product scopes are expanded
+  workflow = signal<WorkflowTemplate | null>(null);
 
   constructor(
     private route: ActivatedRoute, 
     private router: Router,
     private releaseService: ReleaseService,
-    private productService: ProductService
+    private productService: ProductService,
+    private workflowService: WorkflowService
   ) {}
 
   ngOnInit(): void {
@@ -93,7 +100,21 @@ export class ReleaseDetailsComponent implements OnInit {
     this.releaseService.getById(id).subscribe({
       next: (release) => {
         this.release.set(release);
-        this.loading.set(false);
+        // Load workflow for this release type
+        if (release.release_type) {
+          this.workflowService.getByReleaseType(release.release_type).subscribe({
+            next: (wf) => {
+              this.workflow.set(wf);
+              this.loading.set(false);
+            },
+            error: () => {
+              this.loading.set(false);
+              // Continue even if workflow load fails
+            }
+          });
+        } else {
+          this.loading.set(false);
+        }
       },
       error: (err) => { this.loading.set(false); this.error.set(err.message || 'Failed to load release'); }
     });
@@ -132,5 +153,9 @@ export class ReleaseDetailsComponent implements OnInit {
 
   formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  onReleaseUpdated(updatedRelease: Release): void {
+    this.release.set(updatedRelease);
   }
 }

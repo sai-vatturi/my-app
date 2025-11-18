@@ -1,16 +1,10 @@
 from pydantic import BaseModel, Field, GetJsonSchemaHandler, ConfigDict, field_serializer
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 from bson import ObjectId
-from enum import Enum
-
-class ReleaseType(str, Enum):
-    MAJOR_RELEASE = "Major release"
-    HOTFIX = "Hotfix"
-    DATA_PATCH = "Data patch"
-    HOTFIX_DATA_PATCH = "Hotfix & Data patch"
+from app.schemas.workflow import WorkflowStageState
 
 class PyObjectId(ObjectId):
     @classmethod
@@ -40,12 +34,13 @@ class ReleaseProduct(BaseModel):
     scope_description: Optional[str] = None
     pocs: List[str] = Field(default_factory=list)  # Multiple Points of Contact for this product
     fixed_versions: List[FixedVersionInfo] = Field(default_factory=list)
+    workflow_states: Dict[str, WorkflowStageState] = Field(default_factory=dict)
 
 class ReleaseBase(BaseModel):
     name: str
     description: Optional[str] = None
     release_date: datetime
-    release_type: ReleaseType = ReleaseType.MAJOR_RELEASE
+    release_type: str = Field(default="Major release")
     status: str = "planned"  # planned, in_progress, completed, cancelled
     overall_scope: Optional[str] = None
     jira_release_version: Optional[str] = None  # Optional field
@@ -59,7 +54,7 @@ class ReleaseUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     release_date: Optional[datetime] = None
-    release_type: Optional[ReleaseType] = None
+    release_type: Optional[str] = None
     status: Optional[str] = None
     overall_scope: Optional[str] = None
     jira_release_version: Optional[str] = None

@@ -1,10 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel
 
 from app.schemas.release import ReleaseCreate, ReleaseUpdate, ReleaseResponse
 from app.services.release_service import ReleaseService
 from app.core.database import get_database
+
+class TimelineUpdate(BaseModel):
+    product_id: Optional[str] = None
+    deadline: Optional[datetime] = None  # Direct deadline date/time
+    days_before_release: Optional[int] = None  # Alternative: days before release
 
 router = APIRouter()
 
@@ -79,3 +85,49 @@ async def delete_release(release_id: str, db = Depends(get_database)):
     if not success:
         raise HTTPException(status_code=404, detail="Release not found")
     return {"message": "Release deleted successfully"}
+
+@router.post("/{release_id}/products/{product_id}/advance-stage", response_model=ReleaseResponse)
+async def advance_product_stage(
+    release_id: str,
+    product_id: str,
+    db = Depends(get_database)
+):
+    """Advance a product to the next workflow stage"""
+    service = ReleaseService(db)
+    return await service.advance_product_stage(release_id, product_id)
+
+@router.post("/{release_id}/products/{product_id}/stages/{stage_order}/attachment", response_model=ReleaseResponse)
+async def upload_product_stage_attachment(
+    release_id: str,
+    product_id: str,
+    stage_order: int,
+    file: UploadFile = File(...),
+    db = Depends(get_database)
+):
+    """Upload an attachment for a specific workflow stage of a product"""
+    service = ReleaseService(db)
+    return await service.upload_product_stage_attachment(
+        release_id=release_id,
+        product_id=product_id,
+        stage_order=stage_order,
+        file=file
+    )
+
+@router.put("/{release_id}/stages/{stage_order}/timeline", response_model=ReleaseResponse)
+async def update_stage_timeline(
+    release_id: str,
+    stage_order: int,
+    timeline_data: TimelineUpdate = Body(...),
+    db = Depends(get_database)
+):
+    """Update timeline for a stage. If product_id is None in timeline_data, update for all products.
+    Either deadline (direct date/time) or days_before_release must be provided.
+    """
+    service = ReleaseService(db)
+    return await service.update_stage_timeline(
+        release_id=release_id,
+        product_id=timeline_data.product_id,
+        stage_order=stage_order,
+        deadline=timeline_data.deadline,
+        days_before_release=timeline_data.days_before_release
+    )

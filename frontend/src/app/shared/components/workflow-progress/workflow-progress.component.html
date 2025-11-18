@@ -1,0 +1,102 @@
+<div class="space-y-4" *ngIf="workflow && product">
+  <app-alert *ngIf="error()" [message]="error()!" type="error" />
+  
+  <div class="space-y-3">
+    <div *ngFor="let stageDisplay of stages(); let isLast = last" class="relative">
+      <!-- Stage Card -->
+      <div [ngClass]="getStageClass(stageDisplay)">
+        <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+          [ngClass]="{
+            'bg-green-500 text-white': stageDisplay.status === 'completed',
+            'bg-blue-500 text-white': stageDisplay.status === 'current',
+            'bg-gray-300 text-gray-600': stageDisplay.status === 'upcoming'
+          }">
+          {{ getStatusIcon(stageDisplay) }}
+        </div>
+        
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1">
+              <h4 class="font-semibold text-base">{{ stageDisplay.stage.name }}</h4>
+              <p *ngIf="stageDisplay.stage.description" class="text-sm mt-1 opacity-75">
+                {{ stageDisplay.stage.description }}
+              </p>
+              <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                <span *ngIf="stageDisplay.stage.requires_attachment" 
+                  class="px-2 py-1 rounded bg-yellow-100 text-yellow-800">
+                  Requires Attachment
+                </span>
+                <span *ngIf="stageDisplay.stage.attachment_mandatory" 
+                  class="px-2 py-1 rounded bg-orange-100 text-orange-800">
+                  Mandatory
+                </span>
+                <span *ngIf="stageDisplay.state?.completed_at" 
+                  class="px-2 py-1 rounded bg-gray-100 text-gray-700">
+                  Completed: {{ stageDisplay.state?.completed_at | date:'short' }}
+                </span>
+              </div>
+              
+              <!-- Attachment Info -->
+              <div *ngIf="stageDisplay.state?.attachment_id" class="mt-2">
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="text-gray-600">📎</span>
+                  <span class="text-gray-700">{{ stageDisplay.state?.attachment_filename }}</span>
+                  <button 
+                    *ngIf="stageDisplay.state?.attachment_id"
+                    (click)="downloadAttachment(stageDisplay.state?.attachment_id || '')"
+                    class="text-blue-600 hover:text-blue-800 text-xs underline">
+                    Download
+                  </button>
+                </div>
+                <span *ngIf="stageDisplay.state?.attachment_uploaded_at" 
+                  class="text-xs text-gray-500">
+                  Uploaded: {{ stageDisplay.state?.attachment_uploaded_at | date:'short' }}
+                </span>
+              </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex-shrink-0 flex flex-col gap-2">
+              <!-- Upload Attachment -->
+              <div *ngIf="stageDisplay.stage.requires_attachment && stageDisplay.status === 'current'">
+                <label class="cursor-pointer">
+                  <input 
+                    type="file" 
+                    (change)="uploadAttachment(stageDisplay.stage.order, $event)"
+                    class="hidden"
+                    [disabled]="processing()">
+                  <span class="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 inline-block">
+                    📎 Upload
+                  </span>
+                </label>
+              </div>
+              
+              <!-- Advance Button -->
+              <button 
+                *ngIf="stageDisplay.status === 'current' && stageDisplay.canAdvance"
+                (click)="advanceStage()"
+                [disabled]="processing()"
+                class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded font-medium transition-colors">
+                {{ processing() ? 'Processing...' : 'Advance →' }}
+              </button>
+              
+              <span *ngIf="stageDisplay.status === 'current' && !stageDisplay.canAdvance" 
+                class="text-xs text-orange-600 font-medium">
+                Attachment required
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Connector Line -->
+      <div *ngIf="!isLast" class="absolute left-4 top-12 w-0.5 h-6"
+        [ngClass]="{
+          'bg-green-300': stageDisplay.status === 'completed',
+          'bg-gray-300': stageDisplay.status !== 'completed'
+        }">
+      </div>
+    </div>
+  </div>
+</div>
+

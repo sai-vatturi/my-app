@@ -3,6 +3,7 @@
 .AppleDouble
 .LSOverride
 
+uploads/
 # Python
 __pycache__/
 *.py[cod]

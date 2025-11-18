@@ -54,6 +54,10 @@ export const routes: Routes = [
       {
         path: 'releases/:id/edit',
         loadComponent: () => import('./features/releases/release-form/release-form.component').then(m => m.ReleaseFormComponent)
+      },
+      {
+        path: 'workflows',
+        loadComponent: () => import('./features/workflows/workflow-management/workflow-management.component').then(m => m.WorkflowManagementComponent)
       }
     ]
   }
