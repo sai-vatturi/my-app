@@ -7,7 +7,6 @@ import { LoadingSpinnerComponent } from '../../../shared/components/loading-spin
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { ReleaseCardComponent } from '../../../shared/components/release-card/release-card.component';
 
 @Component({
   selector: 'app-release-list',
@@ -18,8 +17,7 @@ import { ReleaseCardComponent } from '../../../shared/components/release-card/re
     LoadingSpinnerComponent,
     AlertComponent,
     ButtonComponent,
-    StatusBadgeComponent,
-    ReleaseCardComponent
+    StatusBadgeComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './release-list.component.html',

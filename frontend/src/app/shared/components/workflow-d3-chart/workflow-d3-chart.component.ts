@@ -31,6 +31,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
   @Output() advanceStage = new EventEmitter<{ productId: string; stageOrder: number }>();
   @Output() editStageDate = new EventEmitter<{ productId: string; stageOrder: number }>();
   @Output() addAttachment = new EventEmitter<{ productId: string; stageOrder: number }>();
+  @Output() productClicked = new EventEmitter<string>();
 
   private svg: any;
   private zoom: any;
@@ -45,15 +46,15 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
     if (this.release && this.workflow) {
       const sortedStages = [...this.workflow.stages].sort((a, b) => a.order - b.order);
       const productNodes: WorkflowNode[] = [];
-      
+
       this.release.products.forEach((product, idx) => {
         const productName = this.productMap?.get(product.product_id) || product.product_id;
         const workflowStates = product.workflow_states || {};
-        
+
         const stageNodes: WorkflowNode[] = sortedStages.map(stage => {
           const state = workflowStates[stage.order.toString()] || null;
           let status: 'completed' | 'current' | 'upcoming' = 'upcoming';
-          
+
           if (state?.status) {
             status = 'completed';
           } else {
@@ -66,7 +67,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
               status = 'current';
             }
           }
-          
+
           return {
             id: `product-${idx}-stage-${stage.order}`,
             label: stage.name,
@@ -75,7 +76,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
             deadline: state?.deadline
           } as WorkflowNode;
         });
-        
+
         productNodes.push({
           id: `product-${idx}`,
           label: productName,
@@ -83,7 +84,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
           children: stageNodes
         });
       });
-      
+
       return {
         id: 'release',
         label: this.release.name,
@@ -91,7 +92,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         children: productNodes
       } as WorkflowNode;
     }
-    
+
     // If only workflow is provided (for workflow management page), show workflow -> stages directly
     if (this.workflow && !this.release) {
       const sortedStages = [...this.workflow.stages].sort((a, b) => a.order - b.order);
@@ -100,7 +101,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         label: stage.name,
         type: 'stage'
       }));
-      
+
       return {
         id: 'workflow',
         label: this.workflow.name,
@@ -108,7 +109,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         children: stageNodes  // Direct children, no intermediate "Stages" node
       } as WorkflowNode;
     }
-    
+
     return null;
   });
 
@@ -162,19 +163,19 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
 
     // Add ruler/grid pattern
     const defs = this.svg.append('defs');
-    
+
     // Create grid pattern
     const gridPattern = defs.append('pattern')
       .attr('id', 'grid')
       .attr('width', 20)
       .attr('height', 20)
       .attr('patternUnits', 'userSpaceOnUse');
-    
+
     gridPattern.append('rect')
       .attr('width', 20)
       .attr('height', 20)
       .attr('fill', '#ffffff');
-    
+
     gridPattern.append('line')
       .attr('x1', 0)
       .attr('y1', 0)
@@ -182,7 +183,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       .attr('y2', 0)
       .attr('stroke', '#e5e7eb')
       .attr('stroke-width', 1);
-    
+
     gridPattern.append('line')
       .attr('x1', 0)
       .attr('y1', 0)
@@ -216,7 +217,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       });
 
     this.svg.call(this.zoom);
-    
+
     // Reset zoom to identity (no transform) to ensure content is visible
     this.svg.call(this.zoom.transform, d3.zoomIdentity);
   }
@@ -227,14 +228,14 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
     const nodeHeight = 60;
     const spacing = 20; // Consistent spacing between all boxes
     const productSpacing = 180;
-    
+
     const productsCount = this.release!.products.length;
-    
+
     // Start products from the left side (no release box)
     const startX = 200;
     const branchStartY = 100;
     const branchEndY = branchStartY + (productsCount - 1) * productSpacing;
-    
+
     // Draw vertical branch line connecting all products (if multiple)
     if (productsCount > 1) {
       this.zoomGroup.append('line')
@@ -245,14 +246,14 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         .attr('stroke', '#9ca3af')
         .attr('stroke-width', 2);
     }
-    
+
     // Draw products and their stages horizontally
     this.release!.products.forEach((product, productIdx) => {
       const productName = this.productMap?.get(product.product_id) || product.product_id;
       const workflowStates = product.workflow_states || {};
       const productY = branchStartY + productIdx * productSpacing;
       const productX = startX + spacing; // Start after branch point
-      
+
       // Draw horizontal line from branch to product (if multiple products)
       if (productsCount > 1) {
         this.zoomGroup.append('line')
@@ -263,12 +264,17 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
           .attr('stroke', '#9ca3af')
           .attr('stroke-width', 2);
       }
-      
+
       // Draw product node
       const productGroup = this.zoomGroup.append('g')
         .attr('class', 'product-node')
-        .attr('transform', `translate(${productX}, ${productY})`);
-      
+        .attr('transform', `translate(${productX}, ${productY})`)
+        .style('cursor', 'pointer')
+        .on('click', (event: any) => {
+          event.stopPropagation();
+          this.productClicked.emit(product.product_id);
+        });
+
       productGroup.append('rect')
         .attr('width', nodeWidth)
         .attr('height', nodeHeight)
@@ -277,7 +283,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         .attr('fill', '#fefce8')  // Light yellow background
         .attr('stroke', '#9ca3af')
         .attr('stroke-width', 2);
-      
+
       // Product text with truncation
       const maxProductTextWidth = nodeWidth - 20;
       let displayProductText = productName;
@@ -289,7 +295,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         .style('font-weight', 'normal')
         .style('fill', '#1f2937')
         .style('opacity', 0);
-      
+
       const productTextWidth = (tempProductText.node() as SVGTextElement)?.getBBox().width || 0;
       if (productTextWidth > maxProductTextWidth) {
         let truncated = productName;
@@ -302,7 +308,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         displayProductText = truncated + (truncated.length < productName.length ? '...' : '');
       }
       tempProductText.remove();
-      
+
       productGroup.append('text')
         .attr('text-anchor', 'middle')
         .attr('dy', 5)
@@ -310,14 +316,14 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         .style('font-size', '14px')
         .style('font-weight', 'normal')
         .style('fill', '#1f2937');
-      
+
       // Draw stages horizontally from product
       // Calculate all stage widths and statuses first
-      const stageData: Array<{width: number; status: 'completed' | 'current' | 'upcoming'}> = [];
+      const stageData: Array<{ width: number; status: 'completed' | 'current' | 'upcoming' }> = [];
       sortedStages.forEach((stage) => {
         const state = workflowStates[stage.order.toString()] || null;
         let status: 'completed' | 'current' | 'upcoming' = 'upcoming';
-        
+
         if (state?.status) {
           status = 'completed';
         } else {
@@ -329,35 +335,35 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
             status = 'current';
           }
         }
-        
+
         // Calculate stage box width based on text size
         const tempText = this.zoomGroup.append('text')
           .attr('text-anchor', 'middle')
           .text(stage.name)
           .style('font-size', '14px')
           .style('opacity', 0);
-        
+
         const textWidth = (tempText.node() as SVGTextElement)?.getBBox().width || 0;
         tempText.remove();
-        
+
         // Enlarge box if text is too large (minimum width is nodeWidth, add padding)
         const actualStageWidth = Math.max(nodeWidth, textWidth + 30);
         stageData.push({ width: actualStageWidth, status });
       });
-      
+
       // Start first stage after product box with proper spacing
       // First stage's left edge should be at: productX + nodeWidth / 2 + spacing
       // So first stage's center should be at: productX + nodeWidth / 2 + spacing + firstStageWidth / 2
       const firstStageWidth = stageData[0]?.width || nodeWidth;
       let stageX = productX + nodeWidth / 2 + spacing + firstStageWidth / 2;
-      
+
       sortedStages.forEach((stage, stageIdx) => {
         const { width: actualStageWidth, status } = stageData[stageIdx];
-        
+
         const stageGroup = this.zoomGroup.append('g')
           .attr('class', 'stage-node')
           .attr('transform', `translate(${stageX}, ${productY})`);
-        
+
         // Stage box with dynamic width
         const stageRect = stageGroup.append('rect')
           .attr('width', actualStageWidth)
@@ -367,7 +373,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
           .attr('fill', this.getStageColor(status))
           .attr('stroke', this.getStageBorderColor(status))
           .attr('stroke-width', 2);
-        
+
         // Add text - bold only for current stage
         stageGroup.append('text')
           .attr('text-anchor', 'middle')
@@ -376,7 +382,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
           .style('font-size', '14px')
           .style('font-weight', status === 'current' ? 'bold' : 'normal')
           .style('fill', '#1f2937');
-        
+
         // Status indicator
         stageGroup.append('circle')
           .attr('cx', actualStageWidth / 2 - 12)
@@ -385,7 +391,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
           .attr('fill', this.getStatusColor(status))
           .attr('stroke', '#fff')
           .attr('stroke-width', 2);
-        
+
         // Connection line to next stage (straight line)
         if (stageIdx < sortedStages.length - 1) {
           const isCurrent = status === 'current';
@@ -400,7 +406,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
             .attr('y2', productY)
             .attr('stroke', isCurrent ? '#3b82f6' : '#9ca3af')
             .attr('stroke-width', isCurrent ? 3 : 2);
-          
+
           if (isCurrent) {
             // Animated dashed line for current stage
             line.attr('stroke-dasharray', '5,5');
@@ -411,7 +417,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
             }, 50);
             this.animationIntervals.push(interval);
           }
-          
+
           // Move to next stage position (center of next stage)
           stageX = nextStageX;
         }
@@ -424,7 +430,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
     const nodeWidth = 150;
     const nodeHeight = 60;
     const spacing = 20; // Consistent spacing
-    
+
     // Calculate all stage widths first
     const stageWidths: number[] = [];
     sortedStages.forEach((stage) => {
@@ -438,24 +444,24 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       const actualStageWidth = Math.max(nodeWidth, textWidth + 30);
       stageWidths.push(actualStageWidth);
     });
-    
+
     // Calculate total width needed: workflow box + spacing + all stages
-    const totalContentWidth = nodeWidth + spacing + stageWidths.reduce((sum, width, idx) => 
+    const totalContentWidth = nodeWidth + spacing + stageWidths.reduce((sum, width, idx) =>
       sum + width + (idx < stageWidths.length - 1 ? spacing : 0), 0
     );
-    
+
     // Start workflow from left with padding, centered if content is smaller than container
     const padding = 50;
-    const workflowX = totalContentWidth < this.width 
+    const workflowX = totalContentWidth < this.width
       ? Math.max(padding, (this.width - totalContentWidth) / 2)
       : padding;
     const workflowY = this.height / 2;
-    
+
     // Draw workflow node
     const workflowGroup = this.zoomGroup.append('g')
       .attr('class', 'workflow-node')
       .attr('transform', `translate(${workflowX}, ${workflowY})`);
-    
+
     workflowGroup.append('rect')
       .attr('width', nodeWidth)
       .attr('height', nodeHeight)
@@ -464,7 +470,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       .attr('fill', '#ede9fe')  // Light violet background
       .attr('stroke', '#9ca3af')
       .attr('stroke-width', 2);
-    
+
     // Workflow text with truncation
     const maxTextWidth = nodeWidth - 20;
     let workflowText = data.label;
@@ -476,7 +482,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       .style('font-weight', 'normal')
       .style('fill', '#1f2937')
       .style('opacity', 0);
-    
+
     const workflowTextWidth = (tempWorkflowText.node() as SVGTextElement)?.getBBox().width || 0;
     if (workflowTextWidth > maxTextWidth) {
       let truncated = data.label;
@@ -489,7 +495,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       workflowText = truncated + (truncated.length < data.label.length ? '...' : '');
     }
     tempWorkflowText.remove();
-    
+
     workflowGroup.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', 5)
@@ -497,7 +503,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       .style('font-size', '14px')
       .style('font-weight', 'normal')
       .style('fill', '#1f2937');
-    
+
     // Draw horizontal line from workflow to stages
     const stagesStartX = workflowX + nodeWidth / 2 + spacing;
     this.zoomGroup.append('line')
@@ -507,20 +513,20 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       .attr('y2', workflowY)
       .attr('stroke', '#9ca3af')
       .attr('stroke-width', 2);
-    
+
     // Start first stage after workflow box with proper spacing
     // First stage's left edge should be at: workflowX + nodeWidth / 2 + spacing
     // So first stage's center should be at: workflowX + nodeWidth / 2 + spacing + firstStageWidth / 2
     const firstStageWidth = stageWidths[0] || nodeWidth;
     let stageX = stagesStartX + firstStageWidth / 2;
-    
+
     sortedStages.forEach((stage, stageIdx) => {
       const actualStageWidth = stageWidths[stageIdx];
-      
+
       const stageGroup = this.zoomGroup.append('g')
         .attr('class', 'stage-node')
         .attr('transform', `translate(${stageX}, ${workflowY})`);
-      
+
       // Stage box with dynamic width
       stageGroup.append('rect')
         .attr('width', actualStageWidth)
@@ -530,7 +536,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         .attr('fill', '#f3f4f6')
         .attr('stroke', '#9ca3af')
         .attr('stroke-width', 2);
-      
+
       stageGroup.append('text')
         .attr('text-anchor', 'middle')
         .attr('dy', 5)
@@ -538,7 +544,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
         .style('font-size', '14px')
         .style('font-weight', 'normal')
         .style('fill', '#1f2937');
-      
+
       // Connection line to next stage
       if (stageIdx < sortedStages.length - 1) {
         const nextStageWidth = stageWidths[stageIdx + 1] || nodeWidth;
@@ -552,7 +558,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
           .attr('y2', workflowY)
           .attr('stroke', '#9ca3af')
           .attr('stroke-width', 2);
-        
+
         // Move to next stage position (center of next stage)
         stageX = nextStageX;
       }

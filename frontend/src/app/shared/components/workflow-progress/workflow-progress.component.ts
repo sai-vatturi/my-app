@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, signal, ChangeDetectionStrategy, computed } from '@angular/core';
+import { Component, Input, Output, EventEmitter, signal, ChangeDetectionStrategy, computed, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { WorkflowTemplate, WorkflowStage, WorkflowStageState } from '../../../core/models/workflow.model';
 import { ReleaseProduct, Release } from '../../../core/models/release.model';
@@ -20,7 +20,7 @@ interface StageDisplay {
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workflow-progress.component.html',
 })
-export class WorkflowProgressComponent {
+export class WorkflowProgressComponent implements OnChanges {
   @Input() workflow!: WorkflowTemplate;
   @Input() product!: ReleaseProduct;
   @Input() releaseId!: string;
@@ -30,25 +30,41 @@ export class WorkflowProgressComponent {
   processing = signal(false);
   error = signal<string | null>(null);
 
+  // Signals for inputs to trigger computed
+  private productSignal = signal<ReleaseProduct | null>(null);
+  private workflowSignal = signal<WorkflowTemplate | null>(null);
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['product'] && this.product) {
+      this.productSignal.set(this.product);
+    }
+    if (changes['workflow'] && this.workflow) {
+      this.workflowSignal.set(this.workflow);
+    }
+  }
+
   stages = computed(() => {
-    if (!this.workflow || !this.product) return [];
-    
-    const workflowStates = this.product.workflow_states || {};
-    const sortedStages = [...this.workflow.stages].sort((a, b) => a.order - b.order);
-    
+    const workflow = this.workflowSignal();
+    const product = this.productSignal();
+
+    if (!workflow || !product) return [];
+
+    const workflowStates = product.workflow_states || {};
+    const sortedStages = [...workflow.stages].sort((a, b) => a.order - b.order);
+
     let foundCurrent = false;
-    
+
     return sortedStages.map((stage, index) => {
       const state = workflowStates[stage.order.toString()] || null;
       let status: 'completed' | 'current' | 'upcoming' = 'upcoming';
       let canAdvance = false;
-      
+
       if (state?.status) {
         status = 'completed';
       } else if (!foundCurrent) {
         status = 'current';
         foundCurrent = true;
-        
+
         // Can advance if:
         // 1. No attachment required, OR
         // 2. Attachment required but not mandatory, OR
@@ -61,7 +77,7 @@ export class WorkflowProgressComponent {
           canAdvance = true;
         }
       }
-      
+
       return {
         stage,
         state,
@@ -71,14 +87,14 @@ export class WorkflowProgressComponent {
     });
   });
 
-  constructor(private releaseService: ReleaseService) {}
+  constructor(private releaseService: ReleaseService) { }
 
   advanceStage(): void {
     if (this.processing()) return;
-    
+
     this.processing.set(true);
     this.error.set(null);
-    
+
     this.releaseService.advanceProductStage(this.releaseId, this.productId).subscribe({
       next: (updatedRelease) => {
         this.processing.set(false);
@@ -95,10 +111,10 @@ export class WorkflowProgressComponent {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    
+
     this.processing.set(true);
     this.error.set(null);
-    
+
     this.releaseService.uploadStageAttachment(this.releaseId, this.productId, stageOrder, file).subscribe({
       next: (updatedRelease) => {
         this.processing.set(false);
@@ -119,12 +135,12 @@ export class WorkflowProgressComponent {
   }
 
   getStageClass(stage: StageDisplay): string {
-    const baseClasses = 'flex items-center gap-3 p-4 rounded-lg border-2 transition-all';
-    
+    const baseClasses = 'flex flex-col gap-2 p-3 rounded-lg border-2 transition-all w-60 flex-shrink-0';
+
     if (stage.status === 'completed') {
       return `${baseClasses} bg-green-50 border-green-200 text-green-900`;
     } else if (stage.status === 'current') {
-      return `${baseClasses} bg-blue-50 border-blue-300 text-blue-900 ring-2 ring-blue-200`;
+      return `${baseClasses} bg-blue-50 border-blue-300 text-blue-900 ring-2 ring-blue-200 shadow-md`;
     } else {
       return `${baseClasses} bg-gray-50 border-gray-200 text-gray-600`;
     }

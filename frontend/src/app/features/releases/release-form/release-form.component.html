@@ -3,144 +3,91 @@
     <h1 class="text-3xl font-bold text-gray-900 mb-8">{{ isEdit ? 'Edit' : 'Create' }} Release</h1>
     <app-alert *ngIf="error()" [message]="error()!" type="error" />
     <app-loading-spinner *ngIf="loading()" />
-  
-  <form *ngIf="!loading()" [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-8 bg-white shadow-md rounded-xl p-8 border border-gray-100">
-    <!-- Name -->
-    <div>
-      <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Release Name <span class="text-red-500">*</span></label>
-      <input id="name" type="text" formControlName="name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" 
-        [class.border-red-500]="form.get('name')?.invalid && form.get('name')?.touched" placeholder="e.g., MUM.2025.02.22" />
-      <p *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="mt-1 text-sm text-red-600">Release name is required</p>
-    </div>
 
-    <!-- Description -->
-    <div>
-      <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-      <textarea id="description" formControlName="description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"></textarea>
-    </div>
-
-    <!-- Type and Status -->
-    <div class="grid grid-cols-2 gap-4">
+    <form *ngIf="!loading()" [formGroup]="form" (ngSubmit)="onSubmit()"
+      class="space-y-8 bg-white shadow-md rounded-xl p-8 border border-gray-100">
+      <!-- Name -->
       <div>
-        <label for="release_type" class="block text-sm font-medium text-gray-700 mb-1">Release Type <span class="text-red-500">*</span></label>
-        <select id="release_type" formControlName="release_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-          <option *ngFor="let type of releaseTypes()" [value]="type">{{ type }}</option>
-        </select>
+        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Release Name <span
+            class="text-red-500">*</span></label>
+        <input id="name" type="text" formControlName="name"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          [class.border-red-500]="form.get('name')?.invalid && form.get('name')?.touched"
+          placeholder="e.g., MUM.2025.02.22" />
+        <p *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="mt-1 text-sm text-red-600">Release name
+          is required</p>
       </div>
+
+      <!-- Description -->
       <div>
-        <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-        <select id="status" formControlName="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-          <option value="planned">Planned</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
+        <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea id="description" formControlName="description" rows="3"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"></textarea>
       </div>
-    </div>
 
-    <!-- Release Date -->
-    <div>
-      <label for="release_date" class="block text-sm font-medium text-gray-700 mb-1">Release Date <span class="text-red-500">*</span></label>
-      <input id="release_date" type="datetime-local" formControlName="release_date" 
-        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" 
-        [class.border-red-500]="form.get('release_date')?.invalid && form.get('release_date')?.touched" />
-    </div>
-
-    <!-- CHG and JIRA -->
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="chg_number" class="block text-sm font-medium text-gray-700 mb-1">Change Request Number</label>
-        <input id="chg_number" type="text" formControlName="chg_number" placeholder="e.g., CHG20438093" 
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-      </div>
-      <div>
-        <label for="jira_release_version" class="block text-sm font-medium text-gray-700 mb-1">JIRA Release Version</label>
-        <input id="jira_release_version" type="text" formControlName="jira_release_version" placeholder="e.g., v10.6" 
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-      </div>
-    </div>
-
-    <!-- Overall Scope -->
-    <div>
-      <label for="overall_scope" class="block text-sm font-medium text-gray-700 mb-1">Overall Scope</label>
-      <textarea id="overall_scope" formControlName="overall_scope" rows="4" 
-        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" 
-        placeholder="Describe the overall scope and objectives of this release"></textarea>
-    </div>
-
-    <!-- Products Section -->
-    <div class="border-t pt-8">
-      <div class="mb-6">
-        <h3 class="text-lg font-semibold">Products</h3>
-      </div>
-      
-      <div formArrayName="products" class="space-y-6">
-        <div *ngFor="let productForm of products.controls; let i = index" [formGroupName]="i" 
-          class="p-6 bg-gray-50 rounded-xl border border-gray-200 space-y-5">
-          
-          <div class="flex justify-between items-start">
-            <h4 class="font-medium text-gray-900">Product {{ i + 1 }}</h4>
-            <button type="button" (click)="removeProduct(i)" class="text-red-600 hover:text-red-800 text-sm">Remove</button>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Product ID</label>
-            <select formControlName="product_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              <option value="">Select a product</option>
-              <option *ngFor="let product of getAvailableProductsForIndex(i)" [value]="product.id || product._id">{{ product.name }}</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Scope Description</label>
-            <textarea formControlName="scope_description" rows="2" 
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg" 
-              placeholder="Describe what's included for this product"></textarea>
-          </div>
-
-          <!-- Fixed Versions -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Fixed Versions</label>
-            <div formArrayName="fixed_versions" class="space-y-2">
-              <div *ngFor="let versionControl of getFixedVersionsArray(i).controls; let j = index" [formGroupName]="j" class="flex gap-2">
-                <input formControlName="jira_board_id" type="text" placeholder="JIRA Board ID" 
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg" />
-                <input formControlName="fixed_version" type="text" placeholder="Version" 
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg" />
-                <button type="button" (click)="removeFixedVersion(i, j)" class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">Remove</button>
-              </div>
-            </div>
-            <button type="button" (click)="addFixedVersion(i)" class="mt-2 text-sm text-primary-600">+ Add Fixed Version</button>
-          </div>
-
-          <!-- POCs -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Points of Contact</label>
-            <div formArrayName="pocs" class="space-y-2">
-              <div *ngFor="let pocControl of getPocsArray(i).controls; let j = index" class="flex gap-2">
-                <input [formControlName]="j" type="text" placeholder="Name" 
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg" />
-                <button type="button" (click)="removePoc(i, j)" class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">Remove</button>
-              </div>
-            </div>
-            <button type="button" (click)="addPoc(i)" class="mt-2 text-sm text-primary-600">+ Add POC</button>
-          </div>
+      <!-- Type and Status -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="release_type" class="block text-sm font-medium text-gray-700 mb-1">Release Type <span
+              class="text-red-500">*</span></label>
+          <select id="release_type" formControlName="release_type"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+            <option *ngFor="let type of releaseTypes()" [value]="type">{{ type }}</option>
+          </select>
+        </div>
+        <div>
+          <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select id="status" formControlName="status"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+            <option value="planned">Planned</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
         </div>
       </div>
-      
-      <!-- Add Product Button (only below all products) -->
-      <div class="pt-4">
-        <button type="button" (click)="addProduct()" class="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Product</button>
-      </div>
-    </div>
 
-    <!-- Form Actions -->
-    <div class="flex gap-4 pt-8 border-t">
-      <app-button type="submit" [disabled]="form.invalid || submitting()" [loading]="submitting()">
-        {{ isEdit ? 'Update' : 'Create' }} Release
-      </app-button>
-      <app-button type="button" variant="secondary" (clicked)="cancel()">Cancel</app-button>
-    </div>
-  </form>
+      <!-- Release Date -->
+      <div>
+        <label for="release_date" class="block text-sm font-medium text-gray-700 mb-1">Release Date <span
+            class="text-red-500">*</span></label>
+        <input id="release_date" type="datetime-local" formControlName="release_date"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          [class.border-red-500]="form.get('release_date')?.invalid && form.get('release_date')?.touched" />
+      </div>
+
+      <!-- CHG and JIRA -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="chg_number" class="block text-sm font-medium text-gray-700 mb-1">Change Request Number</label>
+          <input id="chg_number" type="text" formControlName="chg_number" placeholder="e.g., CHG20438093"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+        </div>
+        <div>
+          <label for="jira_release_version" class="block text-sm font-medium text-gray-700 mb-1">JIRA Release
+            Version</label>
+          <input id="jira_release_version" type="text" formControlName="jira_release_version" placeholder="e.g., v10.6"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+        </div>
+      </div>
+
+      <!-- Overall Scope -->
+      <div>
+        <label for="overall_scope" class="block text-sm font-medium text-gray-700 mb-1">Overall Scope</label>
+        <textarea id="overall_scope" formControlName="overall_scope" rows="4"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          placeholder="Describe the overall scope and objectives of this release"></textarea>
+      </div>
+
+      <!-- Products Section Removed -->
+
+      <!-- Form Actions -->
+      <div class="flex gap-4 pt-8 border-t">
+        <app-button type="submit" [disabled]="form.invalid || submitting()" [loading]="submitting()">
+          {{ isEdit ? 'Update' : 'Create' }} Release
+        </app-button>
+        <app-button type="button" variant="secondary" (clicked)="cancel()">Cancel</app-button>
+      </div>
+    </form>
   </div>
 </div>

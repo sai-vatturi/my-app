@@ -1,15 +1,15 @@
-import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormsModule, ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
 import { WorkflowService } from '../../../core/services/workflow.service';
-import { Release } from '../../../core/models/release.model';
+import { Release, ReleaseProduct } from '../../../core/models/release.model';
 import { Product } from '../../../core/models/product.model';
 import { WorkflowTemplate } from '../../../core/models/workflow.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
-import { ButtonComponent } from '../../../shared/components/button/button.component';
 import { WorkflowProgressComponent } from '../../../shared/components/workflow-progress/workflow-progress.component';
 import { WorkflowD3ChartComponent } from '../../../shared/components/workflow-d3-chart/workflow-d3-chart.component';
 import { TimelineEditorV2Component } from '../../../shared/components/timeline-editor-v2/timeline-editor-v2.component';
@@ -17,10 +17,19 @@ import { TimelineEditorV2Component } from '../../../shared/components/timeline-e
 @Component({
   selector: 'app-release-details',
   standalone: true,
-  imports: [CommonModule, RouterModule, LoadingSpinnerComponent, AlertComponent, ButtonComponent, WorkflowProgressComponent, WorkflowD3ChartComponent, TimelineEditorV2Component],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CommonModule,
+    RouterLink,
+    FormsModule,
+    ReactiveFormsModule,
+    LoadingSpinnerComponent,
+    AlertComponent,
+    WorkflowD3ChartComponent,
+    TimelineEditorV2Component,
+    WorkflowProgressComponent
+  ],
   templateUrl: './release-details.component.html',
-  })
+})
 export class ReleaseDetailsComponent implements OnInit {
   release = signal<Release | null>(null);
   loading = signal(false);
@@ -30,38 +39,53 @@ export class ReleaseDetailsComponent implements OnInit {
   expandedScopes = new Set<number>(); // Track which product scopes are expanded
   workflow = signal<WorkflowTemplate | null>(null);
 
+  // State for modals
+  // State for modals
+  editingProductIndex = signal<number | null>(null);
+  addingProduct = signal<boolean>(false);
+  selectedProductId = signal<string | null>(null);
+
+  selectedProduct = computed(() => {
+    const release = this.release();
+    const productId = this.selectedProductId();
+    if (!release || !productId) return null;
+    return release.products.find(p => p.product_id === productId) || null;
+  });
+
+  newProduct: Partial<ReleaseProduct> & { product_id: string; scope_description: string; fixed_versions: any[]; pocs: string[] } = {
+    product_id: '',
+    scope_description: '',
+    fixed_versions: [],
+    pocs: []
+  };
+  availableProducts = signal<Product[]>([]);
+
   constructor(
-    private route: ActivatedRoute, 
+    private route: ActivatedRoute,
     private router: Router,
     private releaseService: ReleaseService,
     private productService: ProductService,
-    private workflowService: WorkflowService
-  ) {}
+    private workflowService: WorkflowService,
+    private fb: FormBuilder
+  ) { }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      // Load products first, then load release
-      this.loadProducts(id);
+      this.loadRelease(id);
     }
+    this.loadProducts();
   }
 
-  loadProducts(releaseId: string): void {
-    this.loading.set(true);
-    this.productService.getAll().subscribe({
-      next: (products) => {
-        this.products.set(products);
-        products.forEach(p => {
-          const id = p.id || p._id;
-          if (id) this.productMap.set(id, p.name);
-        });
-        // Now load the release after products are loaded
-        this.loadRelease(releaseId);
-      },
-      error: () => {
-        this.loading.set(false);
-        this.error.set('Failed to load products');
-      }
+
+
+  loadProducts(): void {
+    this.productService.getAll().subscribe(products => {
+      this.availableProducts.set(products);
+      products.forEach(p => {
+        const id = p.id || p._id;
+        if (id) this.productMap.set(id, p.name);
+      });
     });
   }
 
@@ -69,12 +93,132 @@ export class ReleaseDetailsComponent implements OnInit {
     return this.productMap.get(productId) || productId;
   }
 
+
+
+  openWorkflowDialog(productId: string): void {
+    this.selectedProductId.set(productId);
+  }
+
+  closeWorkflowDialog(): void {
+    this.selectedProductId.set(null);
+  }
+
   editProduct(index: number): void {
-    const releaseId = this.release()?.id || this.release()?._id;
+    this.editingProductIndex.set(index);
+  }
+
+  closeProductDialog(): void {
+    this.editingProductIndex.set(null);
+  }
+
+  openAddProductDialog(): void {
+    this.newProduct = {
+      product_id: '',
+      scope_description: '',
+      fixed_versions: [],
+      pocs: []
+    };
+    this.addingProduct.set(true);
+  }
+
+  closeAddProductDialog(): void {
+    this.addingProduct.set(false);
+  }
+
+  saveNewProduct(): void {
+    if (!this.newProduct.product_id) return;
+
+    const currentRelease = this.release();
+    if (!currentRelease) return;
+
+    const updatedProducts = [...currentRelease.products, this.newProduct];
+
+    const releaseId = currentRelease.id || currentRelease._id;
     if (!releaseId) return;
-    this.router.navigate(['/releases', releaseId, 'edit'], { 
-      queryParams: { editProduct: index } 
+
+    this.releaseService.update(releaseId, { products: updatedProducts }).subscribe({
+      next: (updated) => {
+        this.release.set(updated);
+        this.closeAddProductDialog();
+      },
+      error: (err) => {
+        this.error.set(err.message || 'Failed to add product');
+      }
     });
+  }
+
+  // Helper for new product form
+  addNewProductPoc(): void {
+    this.newProduct.pocs.push('');
+  }
+
+  removeNewProductPoc(index: number): void {
+    this.newProduct.pocs.splice(index, 1);
+  }
+
+  updateNewProductPoc(value: string, index: number): void {
+    const updatedPocs = [...this.newProduct.pocs];
+    updatedPocs[index] = value;
+    this.newProduct.pocs = updatedPocs;
+  }
+
+  addNewProductVersion(): void {
+    this.newProduct.fixed_versions.push({ jira_board_id: '', fixed_version: '' });
+  }
+
+  removeNewProductVersion(index: number): void {
+    this.newProduct.fixed_versions.splice(index, 1);
+  }
+
+  saveProduct(updatedProduct: any): void {
+    const index = this.editingProductIndex();
+    if (index === null) return;
+
+    const currentRelease = this.release();
+    if (!currentRelease) return;
+
+    const updatedProducts = [...currentRelease.products];
+    updatedProducts[index] = updatedProduct;
+
+    const releaseId = currentRelease.id || currentRelease._id;
+    if (!releaseId) return;
+
+    this.releaseService.update(releaseId, { products: updatedProducts }).subscribe({
+      next: (updated) => {
+        this.release.set(updated);
+        this.closeProductDialog();
+      },
+      error: (err) => {
+        this.error.set(err.message || 'Failed to update product');
+      }
+    });
+  }
+
+  trackByIndex(index: number, item: any): number {
+    return index;
+  }
+
+  updatePoc(value: string, productIndex: number, pocIndex: number): void {
+    const currentRelease = this.release();
+    if (currentRelease && currentRelease.products[productIndex]) {
+      const updatedPocs = [...currentRelease.products[productIndex].pocs];
+      updatedPocs[pocIndex] = value;
+      currentRelease.products[productIndex].pocs = updatedPocs;
+    }
+  }
+
+  addPoc(productIndex: number): void {
+    const currentRelease = this.release();
+    if (currentRelease && currentRelease.products[productIndex]) {
+      currentRelease.products[productIndex].pocs.push('');
+    }
+  }
+
+  removePoc(productIndex: number, pocIndex: number): void {
+    const currentRelease = this.release();
+    if (currentRelease && currentRelease.products[productIndex]) {
+      currentRelease.products[productIndex].pocs.splice(pocIndex, 1);
+    }
   }
 
   toggleScopeExpansion(index: number): void {
