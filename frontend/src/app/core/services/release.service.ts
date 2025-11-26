@@ -10,7 +10,7 @@ export class ReleaseService {
   private releasesSignal = signal<Release[]>([]);
   releases = this.releasesSignal.asReadonly();
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService) { }
 
   getAll(): Observable<Release[]> {
     return this.api.get<Release[]>('/releases').pipe(
@@ -106,7 +106,7 @@ export class ReleaseService {
   ): Observable<Release> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     return this.api.post<Release>(
       `/releases/${releaseId}/products/${productId}/stages/${stageOrder}/attachment`,
       formData
@@ -129,16 +129,43 @@ export class ReleaseService {
     const data: any = {
       product_id: productId || null
     };
-    
+
     if (deadline) {
       data.deadline = deadline.toISOString();
     } else if (daysBeforeRelease !== undefined) {
       data.days_before_release = daysBeforeRelease;
     }
-    
+
     return this.api.put<Release>(
       `/releases/${releaseId}/stages/${stageOrder}/timeline`,
       data
+    ).pipe(
+      tap(updatedRelease => {
+        this.releasesSignal.update(releases =>
+          releases.map(r => (r.id === releaseId || r._id === releaseId) ? updatedRelease : r)
+        );
+      })
+    );
+  }
+  uploadCustomAttachment(releaseId: string, file: File): Observable<Release> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.api.post<Release>(
+      `/releases/${releaseId}/custom-attachments`,
+      formData
+    ).pipe(
+      tap(updatedRelease => {
+        this.releasesSignal.update(releases =>
+          releases.map(r => (r.id === releaseId || r._id === releaseId) ? updatedRelease : r)
+        );
+      })
+    );
+  }
+
+  deleteCustomAttachment(releaseId: string, attachmentId: string): Observable<Release> {
+    return this.api.delete<Release>(
+      `/releases/${releaseId}/custom-attachments/${attachmentId}`
     ).pipe(
       tap(updatedRelease => {
         this.releasesSignal.update(releases =>

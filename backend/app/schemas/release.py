@@ -36,6 +36,12 @@ class ReleaseProduct(BaseModel):
     fixed_versions: List[FixedVersionInfo] = Field(default_factory=list)
     workflow_states: Dict[str, WorkflowStageState] = Field(default_factory=dict)
 
+class CustomAttachment(BaseModel):
+    id: str
+    filename: str
+    uploaded_at: datetime
+    uploaded_by: Optional[str] = None
+
 class ReleaseBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -47,6 +53,7 @@ class ReleaseBase(BaseModel):
     chg_number: Optional[str] = None  # Change Request number
     products: List[ReleaseProduct] = Field(default_factory=list)
     workflow_states: Dict[str, WorkflowStageState] = Field(default_factory=dict)
+    custom_attachments: List[CustomAttachment] = Field(default_factory=list)
 
 class ReleaseCreate(ReleaseBase):
     pass

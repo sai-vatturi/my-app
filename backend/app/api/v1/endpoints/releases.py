@@ -109,3 +109,30 @@ async def update_stage_timeline(
         deadline=timeline_data.deadline,
         days_before_release=timeline_data.days_before_release
     )
+
+@router.post("/{release_id}/custom-attachments", response_model=ReleaseResponse)
+async def upload_custom_attachment(
+    release_id: str,
+    file: UploadFile = File(...),
+    db = Depends(get_database)
+):
+    """Upload a custom attachment for the release"""
+    service = ReleaseService(db)
+    return await service.upload_custom_attachment(
+        release_id=release_id,
+        file=file
+    )
+
+@router.delete("/{release_id}/custom-attachments/{attachment_id}", response_model=ReleaseResponse)
+async def delete_custom_attachment(
+    release_id: str,
+    attachment_id: str,
+    db = Depends(get_database)
+):
+    """Delete a custom attachment"""
+    return await service.delete_custom_attachment(
+        release_id=release_id,
+        attachment_id=attachment_id
+    )
+
+

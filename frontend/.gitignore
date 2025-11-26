@@ -1,9 +1,6 @@
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
+# See http://help.github.com/ignore-files/ for more about ignoring files.
 
-# Angular
+# compiled output
 /dist
 /tmp
 /out-tsc
@@ -40,14 +37,6 @@ yarn-error.log
 testem.log
 /typings
 
-# System files
+# System Files
+.DS_Store
 Thumbs.db
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# Build outputs
-*.js.map
-*.css.map

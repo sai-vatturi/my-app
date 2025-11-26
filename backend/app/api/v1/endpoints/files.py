@@ -37,7 +37,11 @@ async def get_file_metadata(file_id: str, db = Depends(get_database)):
     return file_record
 
 @router.get("/{file_id}/download")
-async def download_file(file_id: str, db = Depends(get_database)):
+async def download_file(
+    file_id: str, 
+    filename: Optional[str] = Query(None, description="Custom filename for download"),
+    db = Depends(get_database)
+):
     """Download file content"""
     service = FileService(db)
     
@@ -49,19 +53,19 @@ async def download_file(file_id: str, db = Depends(get_database)):
         raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
     
     # Create streaming response
-    file_stream = io.BytesIO(file_content)
     
     # Determine media type
     media_type = file_metadata.get("content_type") or "application/octet-stream"
     
     # Create response with appropriate headers
-    filename = file_metadata.get("original_filename") or file_metadata.get("filename", "download")
+    # Use provided filename if available, otherwise fallback to metadata
+    final_filename = filename or file_metadata.get("original_filename") or file_metadata.get("filename", "download")
     
     return StreamingResponse(
         io.BytesIO(file_content),
         media_type=media_type,
         headers={
-            "Content-Disposition": f"attachment; filename=\"{filename}\"",
+            "Content-Disposition": f"attachment; filename=\"{final_filename}\"",
             "Content-Length": str(len(file_content))
         }
     )

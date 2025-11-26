@@ -8,9 +8,13 @@ import { environment } from '../../../environments/environment';
   providedIn: 'root'
 })
 export class ApiService {
-  private readonly baseUrl = environment.apiUrl;
+  private readonly _baseUrl = environment.apiUrl;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
+
+  get baseUrl(): string {
+    return this._baseUrl;
+  }
 
   get<T>(endpoint: string, params?: Record<string, any>): Observable<T> {
     let httpParams = new HttpParams();
@@ -52,7 +56,7 @@ export class ApiService {
 
   private handleError(error: HttpErrorResponse) {
     let errorMessage = 'An unknown error occurred';
-    
+
     if (error.error instanceof ErrorEvent) {
       // Client-side error
       errorMessage = `Error: ${error.error.message}`;
@@ -60,7 +64,7 @@ export class ApiService {
       // Backend error
       errorMessage = error.error?.detail || error.error?.message || `Error Code: ${error.status}\nMessage: ${error.message}`;
     }
-    
+
     console.error('API Error:', errorMessage);
     return throwError(() => new Error(errorMessage));
   }

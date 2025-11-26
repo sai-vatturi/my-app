@@ -20,6 +20,13 @@ export interface ReleaseProduct {
   workflow_states?: { [key: string]: WorkflowStageState };
 }
 
+export interface CustomAttachment {
+  id: string;
+  filename: string;
+  uploaded_at: string;
+  uploaded_by?: string;
+}
+
 export interface Release {
   id?: string;  // Optional for compatibility
   _id?: string; // Backend returns _id
@@ -33,6 +40,7 @@ export interface Release {
   chg_number?: string;
   products: ReleaseProduct[];  // Products in the release
   workflow_states?: { [key: string]: WorkflowStageState }; // Release-level default timeline
+  custom_attachments?: CustomAttachment[];
   created_at: string;
   updated_at: string;
 }

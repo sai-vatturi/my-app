@@ -13,6 +13,8 @@ import { AlertComponent } from '../../../shared/components/alert/alert.component
 import { WorkflowProgressComponent } from '../../../shared/components/workflow-progress/workflow-progress.component';
 import { WorkflowD3ChartComponent } from '../../../shared/components/workflow-d3-chart/workflow-d3-chart.component';
 import { TimelineEditorV2Component } from '../../../shared/components/timeline-editor-v2/timeline-editor-v2.component';
+import { ReleaseAttachmentsComponent } from '../../../features/releases/release-attachments/release-attachments.component';
+import { ButtonComponent } from '../../../shared/components/button/button.component';
 
 @Component({
   selector: 'app-release-details',
@@ -26,7 +28,9 @@ import { TimelineEditorV2Component } from '../../../shared/components/timeline-e
     AlertComponent,
     WorkflowD3ChartComponent,
     TimelineEditorV2Component,
-    WorkflowProgressComponent
+    WorkflowProgressComponent,
+    ReleaseAttachmentsComponent,
+    ButtonComponent
   ],
   templateUrl: './release-details.component.html',
 })
@@ -40,10 +44,10 @@ export class ReleaseDetailsComponent implements OnInit {
   workflow = signal<WorkflowTemplate | null>(null);
 
   // State for modals
-  // State for modals
   editingProductIndex = signal<number | null>(null);
   addingProduct = signal<boolean>(false);
   selectedProductId = signal<string | null>(null);
+  showingAttachments = signal(false);
 
   selectedProduct = computed(() => {
     const release = this.release();
@@ -101,6 +105,14 @@ export class ReleaseDetailsComponent implements OnInit {
 
   closeWorkflowDialog(): void {
     this.selectedProductId.set(null);
+  }
+
+  openAttachmentsDialog(): void {
+    this.showingAttachments.set(true);
+  }
+
+  closeAttachmentsDialog(): void {
+    this.showingAttachments.set(false);
   }
 
   editProduct(index: number): void {

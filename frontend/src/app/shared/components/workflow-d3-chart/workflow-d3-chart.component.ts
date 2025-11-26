@@ -147,10 +147,10 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
     if (this.release && this.release.products) {
       // For release view with products, calculate height based on number of products
       // Reduced padding since we removed release box
-      this.height = Math.max(300, this.release.products.length * 180 + 50);
+      this.height = Math.max(element.offsetHeight || 600, this.release.products.length * 180 + 50);
     } else {
-      // For workflow-only view, use minimal height since stages are horizontal
-      this.height = 200;
+      // For workflow-only view, use container height or default
+      this.height = element.offsetHeight || 400;
     }
 
     this.svg = d3.select(element)

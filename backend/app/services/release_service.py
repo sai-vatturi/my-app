@@ -8,6 +8,7 @@ from fastapi import HTTPException, UploadFile
 from app.schemas.release import ReleaseCreate, ReleaseUpdate
 from app.models.release import Release
 from app.services.workflow_service import WorkflowService
+from app.services.workflow_service import WorkflowService
 from app.services.file_service import FileService
 
 
@@ -262,6 +263,72 @@ class ReleaseService:
         )
 
         return await self.get_release_by_id(release_id)
+
+    async def upload_custom_attachment(
+        self,
+        release_id: str,
+        file: UploadFile,
+        uploaded_by: Optional[str] = None,
+    ) -> dict:
+        """Upload a custom attachment for the release."""
+        release = await self._get_release_or_404(release_id)
+
+        uploaded_file = await self.file_service.upload_file(
+            file=file,
+            release_id=release_id,
+            uploaded_by=uploaded_by,
+            file_type="custom_attachment",
+            tags=[release.get("release_type", ""), "custom"],
+        )
+
+        now = datetime.now(timezone.utc)
+        attachment_data = {
+            "id": str(uploaded_file["_id"]),
+            "filename": uploaded_file.get("original_filename") or uploaded_file.get("filename"),
+            "uploaded_at": now,
+            "uploaded_by": uploaded_by
+        }
+
+        await self.collection.update_one(
+            {"_id": ObjectId(release_id)},
+            {
+                "$push": {"custom_attachments": attachment_data},
+                "$set": {"updated_at": now}
+            }
+        )
+
+        return await self.get_release_by_id(release_id)
+
+    async def delete_custom_attachment(
+        self,
+        release_id: str,
+        attachment_id: str,
+    ) -> dict:
+        """Delete a custom attachment."""
+        release = await self._get_release_or_404(release_id)
+        
+        # Verify attachment exists in release
+        attachments = release.get("custom_attachments", [])
+        attachment = next((a for a in attachments if a.get("id") == attachment_id), None)
+        
+        if not attachment:
+            raise HTTPException(status_code=404, detail="Attachment not found in release")
+
+        # Delete file from GridFS
+        await self.file_service.delete_file(attachment_id)
+
+        # Remove from release document
+        await self.collection.update_one(
+            {"_id": ObjectId(release_id)},
+            {
+                "$pull": {"custom_attachments": {"id": attachment_id}},
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            }
+        )
+
+        return await self.get_release_by_id(release_id)
+
+
 
     async def update_stage_timeline(
         self,
