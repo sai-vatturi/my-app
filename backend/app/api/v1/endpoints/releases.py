@@ -3,14 +3,9 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from app.schemas.release import ReleaseCreate, ReleaseUpdate, ReleaseResponse
+from app.schemas.release import ReleaseCreate, ReleaseUpdate, ReleaseResponse, TimelineUpdate
 from app.services.release_service import ReleaseService
 from app.core.database import get_database
-
-class TimelineUpdate(BaseModel):
-    product_id: Optional[str] = None
-    deadline: Optional[datetime] = None  # Direct deadline date/time
-    days_before_release: Optional[int] = None  # Alternative: days before release
 
 router = APIRouter()
 
@@ -25,28 +20,11 @@ async def get_releases(
     """Get all releases with pagination and optional date range filtering"""
     service = ReleaseService(db)
     
-    # Parse date strings if provided
-    start_datetime = None
-    end_datetime = None
-    
-    if start_date:
-        try:
-            start_datetime = datetime.fromisoformat(start_date)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
-    
-    if end_date:
-        try:
-            # Set to end of day
-            end_datetime = datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
-    
     return await service.get_releases(
         skip=skip, 
         limit=limit, 
-        start_date=start_datetime, 
-        end_date=end_datetime
+        start_date=start_date, 
+        end_date=end_date
     )
 
 @router.get("/{release_id}", response_model=ReleaseResponse)

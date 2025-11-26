@@ -31,14 +31,10 @@
                 </a>
               </td>
               <td class="px-4 md:px-8 py-5">
-                <span [ngClass]="getTypeBadgeClass(release.release_type)" class="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full">
-                  {{ release.release_type }}
-                </span>
+                <app-status-badge [status]="release.release_type" type="type">{{ release.release_type }}</app-status-badge>
               </td>
               <td class="px-4 md:px-8 py-5">
-                <span [ngClass]="getStatusBadgeClass(release.status)" class="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full">
-                  {{ release.status }}
-                </span>
+                <app-status-badge [status]="release.status" type="status">{{ release.status }}</app-status-badge>
               </td>
               <td class="px-4 md:px-8 py-5 text-sm text-gray-600">
                 {{ formatDate(release.release_date) }}
@@ -67,48 +63,12 @@
 
     <!-- Mobile Card View -->
     <div *ngIf="!loading() && releases().length > 0" class="md:hidden space-y-4">
-      <div *ngFor="let release of releases()" class="bg-white rounded-xl shadow-md border border-gray-100 p-4">
-        <div class="flex justify-between items-start mb-3">
-          <a [routerLink]="['/releases', release.id]" class="text-lg font-semibold text-primary-600 hover:text-primary-700">
-            {{ release.name }}
-          </a>
-          <div class="flex gap-2">
-            <a [routerLink]="['/releases', release.id]" class="text-primary-600 hover:text-primary-700 text-sm">View</a>
-            <a [routerLink]="['/releases', release.id, 'edit']" class="text-primary-600 hover:text-primary-700 text-sm">Edit</a>
-          </div>
-        </div>
-        <div class="space-y-2 text-sm">
-          <div class="flex items-center gap-2">
-            <span class="text-gray-500">Type:</span>
-            <span [ngClass]="getTypeBadgeClass(release.release_type)" class="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full">
-              {{ release.release_type }}
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-gray-500">Status:</span>
-            <span [ngClass]="getStatusBadgeClass(release.status)" class="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full">
-              {{ release.status }}
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-gray-500">Date:</span>
-            <span class="text-gray-900">{{ formatDate(release.release_date) }}</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-gray-500">Products:</span>
-            <span class="text-gray-900">{{ release.products.length }}</span>
-          </div>
-          <div class="flex items-center gap-2" *ngIf="release.chg_number">
-            <span class="text-gray-500">CHG:</span>
-            <a href="#" class="text-primary-600 hover:text-primary-700 font-medium">{{ release.chg_number }}</a>
-          </div>
-          <div class="pt-2">
-            <button (click)="deleteRelease(release)" class="text-red-600 hover:text-red-700 text-sm font-medium" [disabled]="deleting() === release.id">
-              {{ deleting() === release.id ? 'Deleting...' : 'Delete' }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <app-release-card 
+        *ngFor="let release of releases()" 
+        [release]="release" 
+        [isDeleting]="deleting() === release.id"
+        (onDelete)="deleteRelease($event)">
+      </app-release-card>
     </div>
 
     <div *ngIf="!loading() && releases().length === 0" class="text-center py-16 bg-white rounded-xl shadow-md border border-gray-100">

@@ -15,6 +15,8 @@ class Release:
         self.chg_number = kwargs.get('chg_number')
         # Products in the release
         self.products = kwargs.get('products', [])
+        # Release-level workflow states (default timelines)
+        self.workflow_states = kwargs.get('workflow_states', {})
         self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
         self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
@@ -30,6 +32,7 @@ class Release:
             'jira_release_version': self.jira_release_version,
             'chg_number': self.chg_number,
             'products': self.products,
+            'workflow_states': self.workflow_states,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

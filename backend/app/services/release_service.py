@@ -22,8 +22,8 @@ class ReleaseService:
         self,
         skip: int = 0,
         limit: int = 100,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
     ) -> List[dict]:
         """Get all releases with pagination and optional date range filtering"""
         query = {}
@@ -31,9 +31,19 @@ class ReleaseService:
         if start_date or end_date:
             query["release_date"] = {}
             if start_date:
-                query["release_date"]["$gte"] = start_date
+                try:
+                    start_datetime = datetime.fromisoformat(start_date)
+                    query["release_date"]["$gte"] = start_datetime
+                except ValueError:
+                    # Log error or ignore invalid date
+                    pass
             if end_date:
-                query["release_date"]["$lte"] = end_date
+                try:
+                    # Set to end of day
+                    end_datetime = datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59)
+                    query["release_date"]["$lte"] = end_datetime
+                except ValueError:
+                    pass
 
         cursor = (
             self.collection.find(query)
@@ -48,7 +58,16 @@ class ReleaseService:
 
     async def get_release_by_id(self, release_id: str) -> Optional[dict]:
         """Get a specific release by ID"""
-        return await self.collection.find_one({"_id": ObjectId(release_id)})
+        release = await self.collection.find_one({"_id": ObjectId(release_id)})
+        if release and "workflow_states" not in release:
+            # Migration: Initialize workflow_states if missing
+            workflow = await self._get_workflow_or_error(release.get("release_type"))
+            release["workflow_states"] = self._build_state_template(workflow, release.get("release_date"))
+            await self.collection.update_one(
+                {"_id": release["_id"]},
+                {"$set": {"workflow_states": release["workflow_states"]}}
+            )
+        return release
 
     async def create_release(self, release_data: ReleaseCreate) -> dict:
         """Create a new release with workflow state initialization"""
@@ -71,6 +90,7 @@ class ReleaseService:
             jira_release_version=release_data.jira_release_version,
             chg_number=release_data.chg_number,
             products=products_dicts,
+            workflow_states=workflow_state_template,
         )
 
         result = await self.collection.insert_one(release.to_dict())
@@ -290,7 +310,22 @@ class ReleaseService:
                 {"$set": update_data},
             )
         else:
-            # Update for all products - update each product individually
+            # Update release-level default timeline
+            await self.collection.update_one(
+                {"_id": release["_id"]},
+                {"$set": {
+                    f"workflow_states.{stage_order}.deadline": deadline.isoformat(),
+                    "updated_at": datetime.now(timezone.utc)
+                }}
+            )
+            
+            # Also update for all products that don't have a specific override?
+            # For now, let's update all products to keep them in sync with the default,
+            # unless we want to track overrides explicitly.
+            # The user requirement implies "default timelines for the release".
+            # If we update the default, it makes sense to update the products too, 
+            # as they initially inherit from the default.
+            
             release_doc = await self.collection.find_one({"_id": release["_id"]})
             if release_doc:
                 for product in release_doc.get("products", []):

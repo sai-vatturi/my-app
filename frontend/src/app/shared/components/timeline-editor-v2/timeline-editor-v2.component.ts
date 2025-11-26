@@ -83,22 +83,27 @@ export class TimelineEditorV2Component {
 
   selectStage(stageOrder: number): void {
     this.selectedStage.set(stageOrder);
-    const firstProduct = this.products[0];
-    if (firstProduct?.workflow_states) {
-      const state = firstProduct.workflow_states[stageOrder.toString()];
+
+    // Try to get existing deadline from release default first
+    let deadlineStr: string | null = null;
+
+    if (this.release.workflow_states) {
+      const state = this.release.workflow_states[stageOrder.toString()];
       if (state?.deadline) {
-        const deadline = new Date(state.deadline);
-        const dateStr = deadline.toISOString().split('T')[0];
-        const timeStr = deadline.toTimeString().slice(0, 5);
-        this.form.patchValue({
-          deadline_date: dateStr,
-          deadline_time: timeStr
-        });
-      } else {
-        // Calculate default from release date
-        this.calculateDefaultDeadline(stageOrder);
+        deadlineStr = state.deadline;
       }
+    }
+
+    if (deadlineStr) {
+      const deadline = new Date(deadlineStr);
+      const dateStr = deadline.toISOString().split('T')[0];
+      const timeStr = deadline.toTimeString().slice(0, 5);
+      this.form.patchValue({
+        deadline_date: dateStr,
+        deadline_time: timeStr
+      });
     } else {
+      // Calculate default from release date
       this.calculateDefaultDeadline(stageOrder);
     }
   }
@@ -109,11 +114,11 @@ export class TimelineEditorV2Component {
 
     const releaseDate = new Date(this.release.release_date);
     const daysBefore = stage.default_days_before_release || 0;
-    
+
     // Calculate date excluding weekends (excluding Saturday and Sunday)
     let targetDate = new Date(releaseDate);
     let daysSubtracted = 0;
-    
+
     while (daysSubtracted < daysBefore) {
       targetDate.setDate(targetDate.getDate() - 1);
       const dayOfWeek = targetDate.getDay();
@@ -131,9 +136,16 @@ export class TimelineEditorV2Component {
   }
 
   getStageDeadline(stageOrder: number, product?: ReleaseProduct): string | null {
-    if (!product?.workflow_states) return null;
-    const state = product.workflow_states[stageOrder.toString()];
-    return state?.deadline || null;
+    if (product) {
+      if (!product.workflow_states) return null;
+      const state = product.workflow_states[stageOrder.toString()];
+      return state?.deadline || null;
+    } else {
+      // Check release level default
+      if (!this.release.workflow_states) return null;
+      const state = this.release.workflow_states[stageOrder.toString()];
+      return state?.deadline || null;
+    }
   }
 
   onSubmit(): void {
@@ -153,7 +165,7 @@ export class TimelineEditorV2Component {
 
     const dateStr = this.form.value.deadline_date;
     const timeStr = this.form.value.deadline_time;
-    
+
     // Validate that the selected date is not a weekend
     const selectedDate = new Date(dateStr);
     const dayOfWeek = selectedDate.getDay();
@@ -162,7 +174,7 @@ export class TimelineEditorV2Component {
       this.submitting.set(false);
       return;
     }
-    
+
     const deadline = new Date(`${dateStr}T${timeStr}:00`);
 
     // Update via release service with direct deadline
@@ -191,9 +203,9 @@ export class TimelineEditorV2Component {
   formatDeadline(deadline: string | null): string {
     if (!deadline) return 'Not set';
     const date = new Date(deadline);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'

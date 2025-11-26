@@ -46,6 +46,7 @@ class ReleaseBase(BaseModel):
     jira_release_version: Optional[str] = None  # Optional field
     chg_number: Optional[str] = None  # Change Request number
     products: List[ReleaseProduct] = Field(default_factory=list)
+    workflow_states: Dict[str, WorkflowStageState] = Field(default_factory=dict)
 
 class ReleaseCreate(ReleaseBase):
     pass
@@ -60,6 +61,11 @@ class ReleaseUpdate(BaseModel):
     jira_release_version: Optional[str] = None
     chg_number: Optional[str] = None
     products: Optional[List[ReleaseProduct]] = None
+
+class TimelineUpdate(BaseModel):
+    product_id: Optional[str] = None
+    deadline: Optional[datetime] = None  # Direct deadline date/time
+    days_before_release: Optional[int] = None  # Alternative: days before release
 
 class ReleaseResponse(ReleaseBase):
     id: PyObjectId = Field(alias="_id")

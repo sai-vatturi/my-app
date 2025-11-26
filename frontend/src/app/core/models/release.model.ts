@@ -32,6 +32,7 @@ export interface Release {
   jira_release_version?: string;
   chg_number?: string;
   products: ReleaseProduct[];  // Products in the release
+  workflow_states?: { [key: string]: WorkflowStageState }; // Release-level default timeline
   created_at: string;
   updated_at: string;
 }

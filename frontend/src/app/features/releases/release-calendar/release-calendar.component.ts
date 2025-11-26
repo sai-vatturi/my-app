@@ -5,14 +5,26 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, ChevronLeft, ChevronRight, Calendar, Clock, Tag, X } from 'lucide-angular';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
+import { WorkflowService } from '../../../core/services/workflow.service';
 import { Release } from '../../../core/models/release.model';
+
+interface CalendarEvent {
+  type: 'release' | 'stage';
+  title: string;
+  time: string;
+  date: Date;
+  color: string;
+  borderColor: string;
+  data: any; // Release object
+  stageOrder?: number;
+}
 
 interface CalendarDay {
   date: Date;
   dayNumber: number;
   isCurrentMonth: boolean;
   isToday: boolean;
-  releases: Release[];
+  events: CalendarEvent[];
 }
 
 interface CalendarWeek {
@@ -38,8 +50,10 @@ export class ReleaseCalendarComponent implements OnInit {
   currentDate = signal<Date>(new Date());
   releases = signal<Release[]>([]);
   products = signal<any[]>([]);
+  workflows = signal<Map<string, any>>(new Map()); // Map release_type -> WorkflowTemplate
   selectedRelease = signal<Release | null>(null);
-  moreReleasesDay = signal<CalendarDay | null>(null);
+  selectedWorkflow = signal<any | null>(null);
+  moreEventsDay = signal<CalendarDay | null>(null);
 
   weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   months = [
@@ -63,22 +77,32 @@ export class ReleaseCalendarComponent implements OnInit {
   });
 
   calendarWeeks = computed(() => {
-    return this.generateCalendar(this.currentDate(), this.releases());
+    return this.generateCalendar(this.currentDate(), this.releases(), this.workflows());
   });
 
   constructor(
     private releaseService: ReleaseService,
-    private productService: ProductService
-  ) {}
+    private productService: ProductService,
+    private workflowService: WorkflowService
+  ) { }
 
   ngOnInit(): void {
     this.loadProducts();
+    this.loadWorkflows();
     this.loadReleases();
   }
 
   private loadProducts(): void {
     this.productService.getAll().subscribe(products => {
       this.products.set(products);
+    });
+  }
+
+  private loadWorkflows(): void {
+    this.workflowService.getAll().subscribe(workflows => {
+      const map = new Map<string, any>();
+      workflows.forEach(w => map.set(w.release_type, w));
+      this.workflows.set(map);
     });
   }
 
@@ -121,21 +145,21 @@ export class ReleaseCalendarComponent implements OnInit {
     this.loadReleases();
   }
 
-  private generateCalendar(date: Date, releases: Release[]): CalendarWeek[] {
+  private generateCalendar(date: Date, releases: Release[], workflowMap: Map<string, any>): CalendarWeek[] {
     const year = date.getFullYear();
     const month = date.getMonth();
-    
+
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    
+
     const startDayOfWeek = firstDay.getDay();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const weeks: CalendarWeek[] = [];
     let currentWeek: CalendarDay[] = [];
-    
+
     // Previous month days
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
@@ -145,29 +169,29 @@ export class ReleaseCalendarComponent implements OnInit {
         dayNumber: prevMonthLastDay - i,
         isCurrentMonth: false,
         isToday: false,
-        releases: []
+        events: []
       });
     }
-    
+
     // Current month days
     for (let day = 1; day <= daysInMonth; day++) {
       const dayDate = new Date(year, month, day);
-      const dayReleases = this.getReleasesForDate(dayDate, releases);
-      
+      const events = this.getEventsForDate(dayDate, releases, workflowMap);
+
       currentWeek.push({
         date: dayDate,
         dayNumber: day,
         isCurrentMonth: true,
         isToday: this.isSameDay(dayDate, today),
-        releases: dayReleases
+        events: events
       });
-      
+
       if (currentWeek.length === 7) {
         weeks.push({ days: currentWeek });
         currentWeek = [];
       }
     }
-    
+
     // Next month days
     let nextMonthDay = 1;
     while (currentWeek.length < 7) {
@@ -177,29 +201,78 @@ export class ReleaseCalendarComponent implements OnInit {
         dayNumber: nextMonthDay,
         isCurrentMonth: false,
         isToday: false,
-        releases: []
+        events: []
       });
       nextMonthDay++;
     }
-    
+
     if (currentWeek.length > 0) {
       weeks.push({ days: currentWeek });
     }
-    
+
     return weeks;
   }
 
-  private getReleasesForDate(date: Date, releases: Release[]): Release[] {
-    return releases.filter(release => {
+  private getEventsForDate(date: Date, releases: Release[], workflowMap: Map<string, any>): CalendarEvent[] {
+    const events: CalendarEvent[] = [];
+
+    releases.forEach(release => {
+      // 1. Release Event
       const releaseDate = new Date(release.release_date);
-      return this.isSameDay(releaseDate, date);
+      if (this.isSameDay(releaseDate, date)) {
+        events.push({
+          type: 'release',
+          title: release.name,
+          time: this.formatTime(releaseDate),
+          date: releaseDate,
+          color: this.getReleaseColor(release.release_type),
+          borderColor: this.getReleaseBorderColor(release.release_type),
+          data: release
+        });
+      }
+
+      // 2. Stage Events
+      if (release.workflow_states) {
+        const workflow = workflowMap.get(release.release_type);
+
+        Object.entries(release.workflow_states).forEach(([key, state]: [string, any]) => {
+          if (state.deadline) {
+            const deadline = new Date(state.deadline);
+            if (this.isSameDay(deadline, date)) {
+              let stageName = `Stage ${key}`;
+              if (workflow) {
+                const stage = workflow.stages.find((s: any) => s.order.toString() === key);
+                if (stage) stageName = stage.name;
+              }
+
+              events.push({
+                type: 'stage',
+                title: `${release.name} - ${stageName}`,
+                time: this.formatTime(deadline),
+                date: deadline,
+                color: '#f3f4f6', // Default gray for stages
+                borderColor: '#d1d5db',
+                data: release,
+                stageOrder: parseInt(key)
+              });
+            }
+          }
+        });
+      }
     });
+
+    // Sort events by time
+    return events.sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 
   private isSameDay(date1: Date, date2: Date): boolean {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
+  }
+
+  private formatTime(date: Date): string {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
 
   getReleaseColor(releaseType: string): string {
@@ -212,39 +285,96 @@ export class ReleaseCalendarComponent implements OnInit {
     return colors[releaseType] || '#f3f4f6';
   }
 
-  openReleaseDetail(release: Release): void {
+  getReleaseBorderColor(releaseType: string): string {
+    const colors: Record<string, string> = {
+      'Major release': '#93c5fd', // blue-300
+      'Hotfix': '#fca5a5', // red-300
+      'Data patch': '#fcd34d', // yellow-300
+      'Hotfix & Data patch': '#d8b4fe' // purple-300
+    };
+    return colors[releaseType] || '#d1d5db'; // gray-300
+  }
+
+  openReleaseDetail(eventOrRelease: Release | CalendarEvent): void {
+    let release: Release;
+    if ('type' in eventOrRelease && (eventOrRelease.type === 'release' || eventOrRelease.type === 'stage')) {
+      release = eventOrRelease.data;
+    } else {
+      release = eventOrRelease as Release;
+    }
+
     this.selectedRelease.set(release);
-    this.moreReleasesDay.set(null);
+    this.moreEventsDay.set(null);
+
+    // Fetch workflow for this release type
+    if (release.release_type) {
+      this.workflowService.getByReleaseType(release.release_type).subscribe(workflow => {
+        this.selectedWorkflow.set(workflow);
+      });
+    }
   }
 
   closeReleaseDetail(): void {
     this.selectedRelease.set(null);
+    this.selectedWorkflow.set(null);
   }
 
-  showMoreReleases(day: CalendarDay): void {
-    this.moreReleasesDay.set(day);
+  getSortedStages(release: Release | null): { key: string, value: any }[] {
+    if (!release || !release.workflow_states) return [];
+
+    return Object.entries(release.workflow_states)
+      .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+      .map(([key, value]) => ({ key, value }));
   }
 
-  closeMoreReleases(): void {
-    this.moreReleasesDay.set(null);
+  getStageName(stageOrder: string): string {
+    const workflow = this.selectedWorkflow();
+    if (!workflow) return `Stage ${stageOrder}`;
+
+    const stage = workflow.stages.find((s: any) => s.order.toString() === stageOrder);
+    return stage ? stage.name : `Stage ${stageOrder}`;
+  }
+
+  formatDeadline(deadline: string | null): string {
+    if (!deadline) return 'Not set';
+    const date = new Date(deadline);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  isOverdue(deadline: string | null): boolean {
+    if (!deadline) return false;
+    return new Date(deadline) < new Date();
+  }
+
+  showMoreEvents(day: CalendarDay): void {
+    this.moreEventsDay.set(day);
+  }
+
+  closeMoreEvents(): void {
+    this.moreEventsDay.set(null);
   }
 
   formatDate(date: Date | undefined): string {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('en-US', { 
+    return new Date(date).toLocaleDateString('en-US', {
       weekday: 'long',
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   }
 
   formatReleaseDate(dateString: string | undefined): string {
     if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('en-US', { 
+    return new Date(dateString).toLocaleDateString('en-US', {
       weekday: 'short',
-      year: 'numeric', 
-      month: 'short', 
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
