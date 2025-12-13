@@ -231,34 +231,8 @@ export class ReleaseCalendarComponent implements OnInit {
         });
       }
 
-      // 2. Stage Events
-      if (release.workflow_states) {
-        const workflow = workflowMap.get(release.release_type);
 
-        Object.entries(release.workflow_states).forEach(([key, state]: [string, any]) => {
-          if (state.deadline) {
-            const deadline = new Date(state.deadline);
-            if (this.isSameDay(deadline, date)) {
-              let stageName = `Stage ${key}`;
-              if (workflow) {
-                const stage = workflow.stages.find((s: any) => s.order.toString() === key);
-                if (stage) stageName = stage.name;
-              }
 
-              events.push({
-                type: 'stage',
-                title: `${release.name} - ${stageName}`,
-                time: this.formatTime(deadline),
-                date: deadline,
-                color: '#f3f4f6', // Default gray for stages
-                borderColor: '#d1d5db',
-                data: release,
-                stageOrder: parseInt(key)
-              });
-            }
-          }
-        });
-      }
     });
 
     // Sort events by time

@@ -162,12 +162,7 @@
       </div>
     </div>
 
-    <!-- Timeline Management -->
-    <div *ngIf="release() && workflow()" class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100">
-      <app-timeline-editor-v2 [release]="release()!" [workflow]="workflow()!" [products]="release()!.products"
-        [productMap]="productMap" (releaseUpdated)="onReleaseUpdated($event)">
-      </app-timeline-editor-v2>
-    </div>
+    <!-- Timeline Management (Removed - moved to Edit Wizard) -->
 
     <!-- Product Stages Tables (REMOVED) -->
   </div>

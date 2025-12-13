@@ -412,7 +412,7 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
             line.attr('stroke-dasharray', '5,5');
             let dashOffset = 0;
             const interval = setInterval(() => {
-              dashOffset = (dashOffset + 1) % 10;
+              dashOffset = (dashOffset - 1) % 10;
               line.attr('stroke-dashoffset', dashOffset);
             }, 50);
             this.animationIntervals.push(interval);
