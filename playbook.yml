@@ -15,47 +15,40 @@
 
   tasks:
     # -------------------------------------------------------------------------
-    # 1. DATA SANITIZATION (CRITICAL FIX)
-    # AWX may send copy_jobs in a broken format where each job is a list of 
-    # fragments like ["source_path:xxx", "destination_path:yyy", {"exclude_paths":[]}]
-    # This task reconstructs them into proper dicts.
+    # 1. DATA PARSING
+    # copy_jobs now uses pipe-delimited strings to avoid YAML/JSON issues:
+    # Format: "source_path|destination_path|exclude1|exclude2|..."
+    # Empty source_path means use artifact root
     # -------------------------------------------------------------------------
-    - name: Parse and normalize copy_jobs from AWX
+    - name: Parse pipe-delimited copy_jobs into structured data
       set_fact:
         final_copy_jobs: >-
           {%- set result = [] -%}
           {%- for item in copy_jobs -%}
-            {%- if item is mapping -%}
-              {# Item is already a proper dict, use as-is #}
-              {%- set _ = result.append(item) -%}
-            {%- elif item is sequence and item is not string -%}
-              {# Item is a fragmented list - reconstruct into a single dict #}
-              {%- set merged = {} -%}
-              {%- for fragment in item -%}
-                {%- if fragment is mapping -%}
-                  {# Fragment is a dict (e.g., {"exclude_paths": [...]}) #}
-                  {%- set merged = merged | combine(fragment) -%}
-                {%- elif fragment is string -%}
-                  {# Fragment is a string like "key:value" #}
-                  {%- set colon_idx = fragment.find(':') -%}
-                  {%- if colon_idx > 0 -%}
-                    {%- set key = fragment[:colon_idx] | trim -%}
-                    {%- set val = fragment[colon_idx+1:] | trim -%}
-                    {# Handle null/None values #}
-                    {%- if val == 'null' or val == 'None' or val == '' -%}
-                      {%- set merged = merged | combine({key: None}) -%}
-                    {%- else -%}
-                      {%- set merged = merged | combine({key: val}) -%}
-                    {%- endif -%}
-                  {%- endif -%}
+            {%- if item is string -%}
+              {%- set parts = item.split('|') -%}
+              {%- set src = parts[0] | trim if parts | length > 0 else '' -%}
+              {%- set dst = parts[1] | trim if parts | length > 1 else '' -%}
+              {%- set excludes = [] -%}
+              {%- for i in range(2, parts | length) -%}
+                {%- if parts[i] | trim -%}
+                  {%- set _ = excludes.append(parts[i] | trim) -%}
                 {%- endif -%}
               {%- endfor -%}
-              {%- set _ = result.append(merged) -%}
+              {%- set job = {
+                'source_path': src if src else None,
+                'destination_path': dst,
+                'exclude_paths': excludes
+              } -%}
+              {%- set _ = result.append(job) -%}
+            {%- elif item is mapping -%}
+              {# Fallback: if item is already a proper dict, use as-is #}
+              {%- set _ = result.append(item) -%}
             {%- endif -%}
           {%- endfor -%}
           {{ result }}
 
-    - name: Debug - Show normalized copy_jobs
+    - name: Debug - Show parsed copy_jobs
       debug:
         var: final_copy_jobs
         verbosity: 0
@@ -103,7 +96,6 @@
       win_shell: |
         $ErrorActionPreference = "Stop"
         
-        # We use the sanitized variable 'final_copy_jobs'
         $jobs = '{{ final_copy_jobs | to_json }}' | ConvertFrom-Json
         $artifactRoot = "{{ extract_dir }}"
 
@@ -111,7 +103,6 @@
             # --- 4a. Resolve Source Path ---
             $srcRel = $job.source_path
             
-            # Checks for NULL, EMPTY, or WHITESPACE
             if ([string]::IsNullOrWhiteSpace($srcRel)) {
                 $src = $artifactRoot
                 Write-Host "Source path is null/empty. Using root: $src"
@@ -135,11 +126,9 @@
             }
 
             # --- 4d. Build Robocopy Arguments ---
-            # Standard flags
             $robocopyArgs = @($src, $dst, "/E", "/COPY:DAT", "/R:2", "/W:2")
             
-            # Add Excludes if they exist
-            if ($job.exclude_paths) {
+            if ($job.exclude_paths -and $job.exclude_paths.Count -gt 0) {
                 $robocopyArgs += "/XD"
                 foreach ($p in $job.exclude_paths) {
                     $robocopyArgs += $p
@@ -150,12 +139,10 @@
             Write-Host "Running Robocopy..."
             & robocopy @robocopyArgs
             
-            # Robocopy Codes: 0=NoCopy, 1=CopySuccess, 2=ExtraFiles, 4=Mismatches, 8=Fail
             if ($LASTEXITCODE -ge 8) {
                 Write-Error "Robocopy failed with exit code $LASTEXITCODE"
                 exit $LASTEXITCODE
             } else {
-                # Force success for Ansible if code is 0-7
                 $global:LASTEXITCODE = 0
             }
         }
