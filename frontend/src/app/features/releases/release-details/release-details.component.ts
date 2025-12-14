@@ -6,9 +6,11 @@ import { from } from 'rxjs';
 import { concatMap, toArray } from 'rxjs/operators';
 import { Router, ActivatedRoute, RouterModule, RouterLink } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder } from '@angular/forms';
+import { ApplicationService } from '../../../core/services/application.service';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
 import { WorkflowService } from '../../../core/services/workflow.service';
+import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { Release, ReleaseProduct } from '../../../core/models/release.model';
 import { Product } from '../../../core/models/product.model';
 import { WorkflowTemplate } from '../../../core/models/workflow.model';
@@ -45,6 +47,7 @@ export class ReleaseDetailsComponent implements OnInit {
   error = signal<string | null>(null);
   products = signal<Product[]>([]);
   productMap = new Map<string, string>();
+  applicationMap = new Map<string, string>();
   expandedScopes = new Set<number>(); // Track which product scopes are expanded
   workflow = signal<WorkflowTemplate | null>(null);
 
@@ -71,6 +74,26 @@ export class ReleaseDetailsComponent implements OnInit {
     return null;
   });
 
+  associatedApplications = computed(() => {
+    const release = this.release();
+    const allProducts = this.availableProducts();
+    this.applicationsLoaded(); // Dependency to trigger re-calculation when map is populated
+
+    if (!release || !allProducts.length) return [];
+
+    const appNames = new Set<string>();
+    release.products.forEach(rp => {
+      const product = allProducts.find(p => (p.id || p._id) === rp.product_id);
+      if (product && product.application_ids) {
+        product.application_ids.forEach(appId => {
+          const appName = this.applicationMap.get(appId);
+          if (appName) appNames.add(appName);
+        });
+      }
+    });
+    return Array.from(appNames).sort();
+  });
+
   newProduct: Partial<ReleaseProduct> & { product_id: string; scope_description: string; fixed_versions: any[]; pocs: string[] } = {
     product_id: '',
     scope_description: '',
@@ -78,15 +101,22 @@ export class ReleaseDetailsComponent implements OnInit {
     pocs: []
   };
   availableProducts = signal<Product[]>([]);
+  businessUnitName = signal<string | null>(null);
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private releaseService: ReleaseService,
     private productService: ProductService,
+    private applicationService: ApplicationService,
     private workflowService: WorkflowService,
+    private businessUnitService: BusinessUnitService,
     private fb: FormBuilder
   ) { }
+
+  applicationsLoaded = signal(false); // Helper to trigger computed
+  currentDateSGT = signal<string>('');
+  private timeInterval: any;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -94,6 +124,47 @@ export class ReleaseDetailsComponent implements OnInit {
       this.loadRelease(id);
     }
     this.loadProducts();
+    this.loadApplications();
+
+    this.updateTime();
+    this.timeInterval = setInterval(() => this.updateTime(), 1000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.timeInterval) {
+      clearInterval(this.timeInterval);
+    }
+  }
+
+  updateTime(): void {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Singapore',
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    };
+    this.currentDateSGT.set(new Intl.DateTimeFormat('en-US', options).format(now));
+  }
+
+  loadApplications(): void {
+    this.applicationService.getAll().subscribe(apps => {
+      apps.forEach(a => {
+        const id = a.id || a._id;
+        if (id) this.applicationMap.set(id, a.name);
+      });
+      // Trigger reactivity if needed, but computed depends on availableProducts mostly
+      // We might need a signal for appMap loaded if computed doesn't pick up map changes directly 
+      // (Maps are not reactive in Angular signals automatically unless the map reference changes).
+      // However, since we are setting it once, we can force re-evaluation by updating a dummy signal or 
+      // better yet, just using a signal for the apps list.
+      this.applicationsLoaded.set(true);
+    });
   }
 
 
@@ -261,6 +332,15 @@ export class ReleaseDetailsComponent implements OnInit {
     this.releaseService.getById(id).subscribe({
       next: (release) => {
         this.release.set(release);
+
+        // Load Business Unit Name
+        if (release.business_unit_id) {
+          this.businessUnitService.getById(release.business_unit_id).subscribe({
+            next: (bu) => this.businessUnitName.set(bu.name),
+            error: () => this.businessUnitName.set(null)
+          });
+        }
+
         // Load workflow for this release type
         if (release.release_type) {
           this.workflowService.getByReleaseType(release.release_type).subscribe({
@@ -403,6 +483,39 @@ export class ReleaseDetailsComponent implements OnInit {
     if (current.status === 'current' && state?.status) {
       this.selectedStageInfo.update(prev => prev ? ({ ...prev, status: 'completed' }) : null);
     }
+  }
+
+  canRevertStage(): boolean {
+    const info = this.selectedStageInfo();
+    if (!info) return false;
+    // can revert if current stage > 1, meaning there is a previous stage to revert back to
+    // The backend 'revert' logic reverts the *last completed* stage.
+    // So if we are at Stage 2 (Current), calling revert will un-complete Stage 1.
+    // This matches "Get back to previous stage".
+    return info.status === 'current' && info.stage.order > 1;
+  }
+
+  revertStageFromCard(): void {
+    const info = this.selectedStageInfo();
+    if (!info) return;
+
+    if (!confirm('Are you sure you want to revert to the previous stage? This will mark the last completed stage as incomplete.')) {
+      return;
+    }
+
+    this.processingAction.set(true);
+    this.releaseService.revertProductStage(this.release()!.id || this.release()!._id!, info.product.product_id)
+      .subscribe({
+        next: (updated) => {
+          this.processingAction.set(false);
+          this.onReleaseUpdated(updated);
+          this.closeStageCard(); // Close after revert as state changes significantly
+        },
+        error: (err) => {
+          this.processingAction.set(false);
+          this.error.set(err.error?.detail || 'Failed to revert stage');
+        }
+      });
   }
 
   // Actions from Card

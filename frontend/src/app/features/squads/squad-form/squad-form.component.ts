@@ -4,8 +4,10 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormArray, For
 import { Router, ActivatedRoute } from '@angular/router';
 import { SquadService } from '../../../core/services/squad.service';
 import { ProductService } from '../../../core/services/product.service';
+import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { SquadCreate, SquadUpdate } from '../../../core/models/squad.model';
 import { Product } from '../../../core/models/product.model';
+import { BusinessUnit } from '../../../core/models/business-unit.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
@@ -16,7 +18,7 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
   imports: [CommonModule, ReactiveFormsModule, LoadingSpinnerComponent, AlertComponent, ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './squad-form.component.html',
-  })
+})
 export class SquadFormComponent implements OnInit {
   form: FormGroup;
   isEdit = false;
@@ -25,8 +27,10 @@ export class SquadFormComponent implements OnInit {
   submitting = signal(false);
   error = signal<string | null>(null);
   products = signal<Product[]>([]);
+  businessUnits = signal<BusinessUnit[]>([]);
   loadingProducts = signal(false);
-  
+  loadingBusinessUnits = signal(false);
+
   // Computed signal for available products (reactive to form changes)
   availableProducts = computed(() => {
     const allProducts = this.products();
@@ -41,12 +45,14 @@ export class SquadFormComponent implements OnInit {
     private fb: FormBuilder,
     private squadService: SquadService,
     private productService: ProductService,
+    private businessUnitService: BusinessUnitService,
     private router: Router,
     private route: ActivatedRoute
   ) {
     this.form = this.fb.group({
       name: ['', Validators.required],
       description: [''],
+      business_unit_id: [''],
       team_leads: this.fb.array([]),
       products: this.fb.array([])
     });
@@ -55,9 +61,10 @@ export class SquadFormComponent implements OnInit {
   ngOnInit(): void {
     this.squadId = this.route.snapshot.paramMap.get('id');
     this.isEdit = !!this.squadId;
-    
+
     this.loadProducts();
-    
+    this.loadBusinessUnits();
+
     if (this.isEdit && this.squadId) {
       this.loadSquad(this.squadId);
     }
@@ -72,6 +79,19 @@ export class SquadFormComponent implements OnInit {
       },
       error: () => {
         this.loadingProducts.set(false);
+      }
+    });
+  }
+
+  loadBusinessUnits(): void {
+    this.loadingBusinessUnits.set(true);
+    this.businessUnitService.getAll().subscribe({
+      next: (units) => {
+        this.businessUnits.set(units);
+        this.loadingBusinessUnits.set(false);
+      },
+      error: () => {
+        this.loadingBusinessUnits.set(false);
       }
     });
   }
@@ -118,14 +138,18 @@ export class SquadFormComponent implements OnInit {
     this.loading.set(true);
     this.squadService.getById(id).subscribe({
       next: (squad) => {
-        this.form.patchValue({ name: squad.name, description: squad.description || '' });
+        this.form.patchValue({
+          name: squad.name,
+          description: squad.description || '',
+          business_unit_id: squad.business_unit_id || ''
+        });
         squad.team_leads?.forEach(lead => this.teamLeads.push(this.fb.control(lead)));
-        
+
         // Populate products
         squad.products?.forEach(productId => {
           this.productsFormArray.push(this.fb.control(productId));
         });
-        
+
         this.loading.set(false);
       },
       error: (err) => { this.loading.set(false); this.error.set(err.message || 'Failed to load squad'); }

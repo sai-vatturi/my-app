@@ -13,6 +13,8 @@ class Product:
         self.principal_engineers = kwargs.get('principal_engineers', [])
         self.jira_boards = kwargs.get('jira_boards', [])
         self.squads = kwargs.get('squads', [])
+        self.business_unit_id = kwargs.get('business_unit_id')
+        self.application_ids = kwargs.get('application_ids', [])
         self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
         self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
@@ -26,6 +28,8 @@ class Product:
             'principal_engineers': self.principal_engineers,
             'jira_boards': self.jira_boards,
             'squads': self.squads,
+            'business_unit_id': self.business_unit_id,
+            'application_ids': self.application_ids,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

@@ -11,14 +11,10 @@
       <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
         Name <span class="text-red-500">*</span>
       </label>
-      <input
-        id="name"
-        type="text"
-        formControlName="name"
+      <input id="name" type="text" formControlName="name"
         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         [class.border-red-500]="form.get('name')?.invalid && form.get('name')?.touched"
-        placeholder="Enter product name"
-      />
+        placeholder="Enter product name" />
       <p *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="mt-1 text-sm text-red-600">
         Product name is required
       </p>
@@ -29,13 +25,21 @@
       <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
         Description
       </label>
-      <textarea
-        id="description"
-        formControlName="description"
-        rows="3"
+      <textarea id="description" formControlName="description" rows="3"
         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        placeholder="Enter product description"
-      ></textarea>
+        placeholder="Enter product description"></textarea>
+    </div>
+
+    <!-- Business Unit -->
+    <div>
+      <label for="business_unit_id" class="block text-sm font-medium text-gray-700 mb-1">Business Unit</label>
+      <select id="business_unit_id" formControlName="business_unit_id"
+        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+        <option value="">Select Business Unit</option>
+        <option *ngFor="let unit of businessUnits()" [value]="unit.id || unit._id">
+          {{ unit.name }}
+        </option>
+      </select>
     </div>
 
     <!-- Product Owners -->
@@ -43,13 +47,11 @@
       <label class="block text-sm font-medium text-gray-700 mb-1">Product Owners</label>
       <div formArrayName="product_owners" class="space-y-2">
         <div *ngFor="let control of productOwners.controls; let i = index" class="flex gap-2">
-          <input
-            [formControlName]="i"
-            type="text"
+          <input [formControlName]="i" type="text"
             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="Owner name"
-          />
-          <button type="button" (click)="removeProductOwner(i)" class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">
+            placeholder="Owner name" />
+          <button type="button" (click)="removeProductOwner(i)"
+            class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">
             Remove
           </button>
         </div>
@@ -64,12 +66,9 @@
       <label class="block text-sm font-medium text-gray-700 mb-1">Team Leads</label>
       <div formArrayName="team_leads" class="space-y-2">
         <div *ngFor="let control of teamLeads.controls; let i = index" class="flex gap-2">
-          <input
-            [formControlName]="i"
-            type="text"
+          <input [formControlName]="i" type="text"
             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="Team lead name"
-          />
+            placeholder="Team lead name" />
           <button type="button" (click)="removeTeamLead(i)" class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">
             Remove
           </button>
@@ -85,18 +84,17 @@
       <label class="block text-sm font-medium text-gray-700 mb-1">Principal Engineers</label>
       <div formArrayName="principal_engineers" class="space-y-2">
         <div *ngFor="let control of principalEngineers.controls; let i = index" class="flex gap-2">
-          <input
-            [formControlName]="i"
-            type="text"
+          <input [formControlName]="i" type="text"
             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="Principal engineer name"
-          />
-          <button type="button" (click)="removePrincipalEngineer(i)" class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">
+            placeholder="Principal engineer name" />
+          <button type="button" (click)="removePrincipalEngineer(i)"
+            class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">
             Remove
           </button>
         </div>
       </div>
-      <button type="button" (click)="addPrincipalEngineer()" class="mt-2 text-sm text-primary-600 hover:text-primary-700">
+      <button type="button" (click)="addPrincipalEngineer()"
+        class="mt-2 text-sm text-primary-600 hover:text-primary-700">
         + Add Principal Engineer
       </button>
     </div>
@@ -105,19 +103,14 @@
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-1">JIRA Boards</label>
       <div formArrayName="jira_boards" class="space-y-3">
-        <div *ngFor="let board of jiraBoards.controls; let i = index" [formGroupName]="i" class="flex gap-2 p-3 bg-gray-50 rounded-lg">
-          <input
-            formControlName="board_id"
-            type="text"
+        <div *ngFor="let board of jiraBoards.controls; let i = index" [formGroupName]="i"
+          class="flex gap-2 p-3 bg-gray-50 rounded-lg">
+          <input formControlName="board_id" type="text"
             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="Board ID"
-          />
-          <input
-            formControlName="board_name"
-            type="text"
+            placeholder="Board ID" />
+          <input formControlName="board_name" type="text"
             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="Board Name"
-          />
+            placeholder="Board Name" />
           <button type="button" (click)="removeJiraBoard(i)" class="px-3 py-2 text-red-600 hover:bg-red-100 rounded-lg">
             Remove
           </button>
@@ -133,45 +126,84 @@
       <label class="block text-sm font-medium text-gray-700 mb-2">Associated Squads</label>
       <p class="text-xs text-gray-500 mb-3">Add squads that work on this product</p>
       <app-loading-spinner *ngIf="loadingSquads()" />
-      
+
       <!-- Selected Squads -->
       <div *ngIf="!loadingSquads() && squadsFormArray.length > 0" class="space-y-2 mb-4">
-        <div *ngFor="let control of squadsFormArray.controls; let i = index" class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+        <div *ngFor="let control of squadsFormArray.controls; let i = index"
+          class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
           <span class="flex-1 text-sm text-gray-900">
             {{ getSquadName(control.value) }}
           </span>
-          <button type="button" (click)="removeSquad(i)" class="text-red-600 hover:text-red-800 text-sm font-medium">Remove</button>
+          <button type="button" (click)="removeSquad(i)"
+            class="text-red-600 hover:text-red-800 text-sm font-medium">Remove</button>
         </div>
       </div>
-      
+
       <!-- Add Squad Dropdown -->
       <div *ngIf="!loadingSquads()" class="flex gap-2">
-        <select 
-          #squadSelect
-          (change)="$event"
-          class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          [value]="''">
+        <select #squadSelect (change)="$event"
+          class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" [value]="''">
           <option value="">Select a squad to add</option>
-          <option 
-            *ngFor="let squad of availableSquads()" 
-            [value]="squad.id || squad._id">
+          <option *ngFor="let squad of availableSquads()" [value]="squad.id || squad._id">
             {{ squad.name }}
           </option>
         </select>
-        <button 
-          type="button" 
-          (click)="addSquadFromDropdown(squadSelect.value); squadSelect.value = ''"
+        <button type="button" (click)="addSquadFromDropdown(squadSelect.value); squadSelect.value = ''"
           [disabled]="!squadSelect.value || squadSelect.value === '' || squadSelect.value === 'Select a squad to add'"
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors duration-200">
           Add Squad
         </button>
       </div>
-      
+
       <p *ngIf="!loadingSquads() && squads().length === 0" class="text-sm text-gray-500 text-center py-4">
         No squads available. Create squads first.
       </p>
-      <p *ngIf="!loadingSquads() && squads().length > 0 && availableSquads().length === 0" class="text-sm text-blue-600 text-center py-2">
+      <p *ngIf="!loadingSquads() && squads().length > 0 && availableSquads().length === 0"
+        class="text-sm text-blue-600 text-center py-2">
         All available squads have been added to this product.
+      </p>
+    </div>
+
+    <!-- Applications -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">Associated Applications</label>
+      <p class="text-xs text-gray-500 mb-3">Tag applications associated with this product</p>
+      <app-loading-spinner *ngIf="loadingApplications()" />
+
+      <!-- Selected Applications -->
+      <div *ngIf="!loadingApplications() && applicationsFormArray.length > 0" class="space-y-2 mb-4">
+        <div *ngFor="let control of applicationsFormArray.controls; let i = index"
+          class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+          <span class="flex-1 text-sm text-gray-900">
+            {{ getApplicationName(control.value) }}
+          </span>
+          <button type="button" (click)="removeApplication(i)"
+            class="text-red-600 hover:text-red-800 text-sm font-medium">Remove</button>
+        </div>
+      </div>
+
+      <!-- Add Application Dropdown -->
+      <div *ngIf="!loadingApplications()" class="flex gap-2">
+        <select #appSelect (change)="$event"
+          class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" [value]="''">
+          <option value="">Select an application to add</option>
+          <option *ngFor="let app of availableApplications()" [value]="app.id || app._id">
+            {{ app.name }}
+          </option>
+        </select>
+        <button type="button" (click)="addApplicationFromDropdown(appSelect.value); appSelect.value = ''"
+          [disabled]="!appSelect.value || appSelect.value === '' || appSelect.value === 'Select an application to add'"
+          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors duration-200">
+          Add Application
+        </button>
+      </div>
+
+      <p *ngIf="!loadingApplications() && applications().length === 0" class="text-sm text-gray-500 text-center py-4">
+        No applications available. Create applications first.
+      </p>
+      <p *ngIf="!loadingApplications() && applications().length > 0 && availableApplications().length === 0"
+        class="text-sm text-blue-600 text-center py-2">
+        All available applications have been added to this product.
       </p>
     </div>
 

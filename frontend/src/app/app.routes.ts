@@ -58,6 +58,30 @@ export const routes: Routes = [
       {
         path: 'workflows',
         loadComponent: () => import('./features/workflows/workflow-management/workflow-management.component').then(m => m.WorkflowManagementComponent)
+      },
+      {
+        path: 'business-units',
+        loadComponent: () => import('./features/business-units/business-unit-list/business-unit-list.component').then(m => m.BusinessUnitListComponent)
+      },
+      {
+        path: 'business-units/new',
+        loadComponent: () => import('./features/business-units/business-unit-form/business-unit-form.component').then(m => m.BusinessUnitFormComponent)
+      },
+      {
+        path: 'business-units/:id/edit',
+        loadComponent: () => import('./features/business-units/business-unit-form/business-unit-form.component').then(m => m.BusinessUnitFormComponent)
+      },
+      {
+        path: 'applications',
+        loadComponent: () => import('./features/applications/application-list/application-list.component').then(m => m.ApplicationListComponent)
+      },
+      {
+        path: 'applications/new',
+        loadComponent: () => import('./features/applications/application-form/application-form.component').then(m => m.ApplicationFormComponent)
+      },
+      {
+        path: 'applications/:id/edit',
+        loadComponent: () => import('./features/applications/application-form/application-form.component').then(m => m.ApplicationFormComponent)
       }
     ]
   }

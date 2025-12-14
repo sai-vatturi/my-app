@@ -44,37 +44,15 @@ export class TimelineEditorV2Component {
     private releaseService: ReleaseService
   ) {
     this.form = this.fb.group({
-      deadline_date: ['', [Validators.required, this.weekdayValidator.bind(this)]],
+      deadline_date: ['', [Validators.required]],
       deadline_time: ['18:00'], // Default 6 PM SGT
       product_id: ['']
     });
   }
 
-  weekdayValidator(control: any): { [key: string]: any } | null {
-    if (!control || !control.value) return null;
-    const date = new Date(control.value);
-    if (isNaN(date.getTime())) return null;
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      return { weekend: true };
-    }
-    return null;
-  }
 
-  validateWeekday(event: any): void {
-    const dateStr = event.target.value;
-    if (dateStr) {
-      const date = new Date(dateStr);
-      const dayOfWeek = date.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        this.form.get('deadline_date')?.setErrors({ weekend: true });
-        this.error.set('Weekends are not allowed. Please select a weekday.');
-      } else {
-        this.form.get('deadline_date')?.setErrors(null);
-        this.error.set(null);
-      }
-    }
-  }
+
+
 
   getMinDate(): string {
     // Return today's date as minimum
@@ -167,13 +145,7 @@ export class TimelineEditorV2Component {
     const timeStr = this.form.value.deadline_time;
 
     // Validate that the selected date is not a weekend
-    const selectedDate = new Date(dateStr);
-    const dayOfWeek = selectedDate.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      this.error.set('Deadline cannot be set on weekends. Please select a weekday.');
-      this.submitting.set(false);
-      return;
-    }
+
 
     const deadline = new Date(`${dateStr}T${timeStr}:00`);
 

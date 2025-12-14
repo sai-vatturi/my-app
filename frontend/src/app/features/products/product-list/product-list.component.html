@@ -11,7 +11,8 @@
 
     <app-loading-spinner *ngIf="loading()" />
 
-    <div *ngIf="!loading() && products().length > 0" class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+    <div *ngIf="!loading() && products().length > 0"
+      class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
@@ -29,49 +30,105 @@
             </th>
             <th scope="col" class="px-8 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Actions
-          </th>
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <tr *ngFor="let product of products()" class="hover:bg-gray-50 transition-colors">
-          <td class="px-8 py-5 whitespace-nowrap">
-            <div class="text-sm font-semibold text-gray-900">{{ product.name }}</div>
-          </td>
-          <td class="px-8 py-5">
-            <div class="text-sm text-gray-600">{{ product.description || 'N/A' }}</div>
-          </td>
-          <td class="px-8 py-5">
-            <div class="flex flex-wrap gap-2">
-              <span *ngFor="let board of product.jira_boards" class="inline-flex items-center bg-blue-50 text-blue-700 text-xs font-medium px-3 py-1 rounded-full">
-                {{ board.board_name }}
-              </span>
-              <span *ngIf="product.jira_boards.length === 0" class="text-sm text-gray-400">None</span>
-            </div>
-          </td>
-          <td class="px-8 py-5">
-            <div class="text-sm text-gray-600">{{ product.squads?.length || 0 }}</div>
-          </td>
-          <td class="px-8 py-5 whitespace-nowrap text-right text-sm font-medium space-x-3">
-            <a [routerLink]="['/products', product.id, 'edit']" class="text-primary-600 hover:text-primary-700 font-medium">
-              Edit
-            </a>
-            <button
-              (click)="deleteProduct(product)"
-              class="text-red-600 hover:text-red-700 font-medium"
-              [disabled]="deleting() === product.id">
-              {{ deleting() === product.id ? 'Deleting...' : 'Delete' }}
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <ng-container *ngFor="let product of products()">
+            <tr (click)="toggleExpand(product)" class="hover:bg-gray-50 transition-colors cursor-pointer group">
+              <td class="px-8 py-5 whitespace-nowrap">
+                <div class="flex items-center">
+                  <lucide-icon [img]="isExpanded(product) ? ChevronDown : ChevronRight" [size]="16"
+                    class="text-gray-400 mr-2"></lucide-icon>
+                  <div class="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{{
+                    product.name }}</div>
+                </div>
+              </td>
+              <td class="px-8 py-5">
+                <div class="text-sm text-gray-600 line-clamp-1">{{ product.description || 'N/A' }}</div>
+              </td>
+              <td class="px-8 py-5">
+                <div class="flex flex-wrap gap-2">
+                  <span *ngFor="let board of product.jira_boards"
+                    class="inline-flex items-center bg-blue-50 text-blue-700 text-xs font-medium px-3 py-1 rounded-full">
+                    {{ board.board_name }}
+                  </span>
+                  <span *ngIf="product.jira_boards.length === 0" class="text-sm text-gray-400">None</span>
+                </div>
+              </td>
+              <td class="px-8 py-5">
+                <div class="text-sm text-gray-600">{{ product.squads?.length || 0 }}</div>
+              </td>
+              <td class="px-8 py-5 whitespace-nowrap text-right text-sm font-medium space-x-3"
+                (click)="$event.stopPropagation()">
+                <a [routerLink]="['/products', product.id || product._id, 'edit']"
+                  class="text-primary-600 hover:text-primary-700 font-medium">
+                  Edit
+                </a>
+                <button (click)="deleteProduct(product)" class="text-red-600 hover:text-red-700 font-medium"
+                  [disabled]="deleting() === (product.id || product._id)">
+                  {{ deleting() === (product.id || product._id) ? 'Deleting...' : 'Delete' }}
+                </button>
+              </td>
+            </tr>
 
-  <div *ngIf="!loading() && products().length === 0" class="text-center py-16 bg-white rounded-xl shadow-md border border-gray-100">
-    <p class="text-gray-500 text-lg mb-4">No products found</p>
-    <app-button [routerLink]="['/products/create']" class="mt-4">
-      Create your first product
-    </app-button>
-  </div>
+            <!-- Expanded Details Row -->
+            <tr *ngIf="isExpanded(product)" class="bg-gray-50">
+              <td colspan="5" class="px-8 py-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <!-- Squads Section -->
+                  <div>
+                    <h4 class="flex items-center text-sm font-semibold text-gray-900 mb-3">
+                      <lucide-icon [img]="Users" [size]="16" class="mr-2 text-indigo-500"></lucide-icon>
+                      Associated Squads
+                    </h4>
+                    <div class="bg-white rounded-lg border border-gray-200 p-4">
+                      <ul class="space-y-2">
+                        <li *ngFor="let squad of getSquadsForProduct(product)"
+                          class="flex items-center text-sm text-gray-600">
+                          <div class="w-2 h-2 rounded-full bg-indigo-400 mr-2"></div>
+                          {{ squad.name }}
+                        </li>
+                        <li *ngIf="getSquadsForProduct(product).length === 0" class="text-sm text-gray-400 italic">
+                          No squads associated
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <!-- Applications Section -->
+                  <div>
+                    <h4 class="flex items-center text-sm font-semibold text-gray-900 mb-3">
+                      <lucide-icon [img]="AppWindow" [size]="16" class="mr-2 text-purple-500"></lucide-icon>
+                      Tagged Applications
+                    </h4>
+                    <div class="bg-white rounded-lg border border-gray-200 p-4">
+                      <div class="flex flex-wrap gap-2">
+                        <span *ngFor="let app of getApplicationsForProduct(product)"
+                          class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-purple-100 text-purple-800">
+                          {{ app.name }}
+                        </span>
+                        <span *ngIf="getApplicationsForProduct(product).length === 0"
+                          class="text-sm text-gray-400 italic">
+                          No applications tagged
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!loading() && products().length === 0"
+      class="text-center py-16 bg-white rounded-xl shadow-md border border-gray-100">
+      <p class="text-gray-500 text-lg mb-4">No products found</p>
+      <app-button [routerLink]="['/products/create']" class="mt-4">
+        Create your first product
+      </app-button>
+    </div>
   </div>
 </div>

@@ -1,9 +1,11 @@
 <div class="flex min-h-screen bg-gray-50">
   <app-sidebar #sidebar></app-sidebar>
-  
-  <main 
-    [class]="sidebar.isCollapsed() ? 'md:ml-16 ml-16' : 'md:ml-56 ml-56'" 
-    class="flex-1 p-4 md:p-8 transition-all duration-300 ease-in-out w-full">
-    <router-outlet></router-outlet>
+
+  <main [class]="sidebar.isCollapsed() ? 'md:ml-16 ml-16' : 'md:ml-56 ml-56'"
+    class="flex-1 transition-all duration-300 ease-in-out w-full flex flex-col min-h-screen">
+    <app-header></app-header>
+    <div class="p-4 md:p-8 flex-1">
+      <router-outlet></router-outlet>
+    </div>
   </main>
 </div>

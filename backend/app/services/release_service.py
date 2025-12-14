@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 from bson import ObjectId
@@ -10,6 +10,7 @@ from app.models.release import Release
 from app.services.workflow_service import WorkflowService
 
 from app.services.file_service import FileService
+from app.core import utils
 
 
 class ReleaseService:
@@ -149,7 +150,7 @@ class ReleaseService:
             update_data["products"] = updated_products
 
         if update_data:
-            update_data["updated_at"] = datetime.now(timezone.utc)
+            update_data["updated_at"] = utils.get_utc_now()
             await self.collection.update_one(
                 {"_id": ObjectId(release_id)},
                 {"$set": update_data},
@@ -161,6 +162,45 @@ class ReleaseService:
         """Delete a release"""
         result = await self.collection.delete_one({"_id": ObjectId(release_id)})
         return result.deleted_count > 0
+
+    async def revert_product_stage(self, release_id: str, product_id: str) -> dict:
+        """Revert the last completed workflow stage for a product."""
+        release = await self._get_release_or_404(release_id)
+        workflow = await self._get_workflow_or_error(release.get("release_type"))
+        product = self._get_product_or_404(release, product_id)
+        
+        states = product.get("workflow_states", {})
+        
+        # Find the last completed stage
+        sorted_stages = sorted(workflow.get("stages", []), key=lambda s: s["order"], reverse=True)
+        
+        stage_to_revert = None
+        for stage in sorted_stages:
+            stage_key = str(stage["order"])
+            state = states.get(stage_key)
+            if state and state.get("status") is True:
+                stage_to_revert = stage
+                break
+        
+        if not stage_to_revert:
+             raise HTTPException(
+                status_code=400, detail="Product has no completed stages to revert."
+            )
+
+        stage_key = str(stage_to_revert["order"])
+        
+        await self.collection.update_one(
+            {"_id": release["_id"], "products.product_id": product_id},
+            {
+                "$set": {
+                    f"products.$.workflow_states.{stage_key}.status": False,
+                    f"products.$.workflow_states.{stage_key}.completed_at": None,
+                    "updated_at": utils.get_utc_now(),
+                }
+            },
+        )
+
+        return await self.get_release_by_id(release_id)
 
     async def advance_product_stage(self, release_id: str, product_id: str) -> dict:
         """Advance the next pending workflow stage for a product."""
@@ -186,13 +226,17 @@ class ReleaseService:
         stage_state = states.get(stage_key)
 
         if next_stage.get("requires_attachment") and next_stage.get("attachment_mandatory"):
-            if not stage_state.get("attachment_id"):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Stage '{next_stage['name']}' requires an attachment before advancing.",
-                )
+            if not stage_state.get("attachment_id") and not stage_state.get("attachments"): # Fix for attachments array check
+                 # Also check backward compatibility ID if array is empty? 
+                 # logic above checks both indirectly via blank_stage structure defaults but be explicit
+                 if not stage_state.get("attachment_id") and not stage_state.get("attachments"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Stage '{next_stage['name']}' requires an attachment before advancing.",
+                    )
 
-        now = datetime.now(timezone.utc)
+        # now = datetime.now(timezone.utc) -> not needed var if we use utils direct, but let's see logic below uses 'now'
+        now = utils.get_utc_now()
         await self.collection.update_one(
             {"_id": release["_id"], "products.product_id": product_id},
             {
@@ -243,10 +287,8 @@ class ReleaseService:
             ],
         )
 
-        now = datetime.now(timezone.utc)
+        now = utils.get_utc_now()
         file_id = str(uploaded_file["_id"])
-        filename = uploaded_file.get("original_filename") or uploaded_file.get("filename")
-
         # Prepare attachment data
         attachment_data = {
             "id": file_id,
@@ -299,7 +341,7 @@ class ReleaseService:
             # If file doesn't exist in storage, we still want to remove the reference
             pass
         
-        now = datetime.now(timezone.utc)
+        now = utils.get_utc_now()
 
         # 2. Pull from array
         await self.collection.update_one(
@@ -366,7 +408,7 @@ class ReleaseService:
             tags=[release.get("release_type", ""), "custom"],
         )
 
-        now = datetime.now(timezone.utc)
+        now = utils.get_utc_now()
         attachment_data = {
             "id": str(uploaded_file["_id"]),
             "filename": uploaded_file.get("original_filename") or uploaded_file.get("filename"),
@@ -407,7 +449,7 @@ class ReleaseService:
             {"_id": ObjectId(release_id)},
             {
                 "$pull": {"custom_attachments": {"id": attachment_id}},
-                "$set": {"updated_at": datetime.now(timezone.utc)}
+                "$set": {"updated_at": utils.get_utc_now()}
             }
         )
 
@@ -438,13 +480,7 @@ class ReleaseService:
             if isinstance(release_date, str):
                 release_date = datetime.fromisoformat(release_date.replace("Z", "+00:00"))
             # Calculate excluding weekends
-            target_date = release_date
-            days_subtracted = 0
-            while days_subtracted < days_before_release:
-                target_date = target_date - timedelta(days=1)
-                if target_date.weekday() < 5:  # Monday-Friday
-                    days_subtracted += 1
-            deadline = target_date.replace(hour=18, minute=0, second=0, microsecond=0)
+            deadline = utils.calculate_deadline(release_date, days_before_release)
         elif not deadline:
             raise HTTPException(
                 status_code=400, detail="Either deadline or days_before_release must be provided"
@@ -452,7 +488,7 @@ class ReleaseService:
 
         update_data = {
             f"products.$.workflow_states.{stage_order}.deadline": deadline.isoformat(),
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": utils.get_utc_now(),
         }
 
         if product_id:
@@ -467,7 +503,7 @@ class ReleaseService:
                 {"_id": release["_id"]},
                 {"$set": {
                     f"workflow_states.{stage_order}.deadline": deadline.isoformat(),
-                    "updated_at": datetime.now(timezone.utc)
+                    "updated_at": utils.get_utc_now()
                 }}
             )
             
@@ -492,7 +528,7 @@ class ReleaseService:
         return await self.get_release_by_id(release_id)
 
     async def _persist_workflow_states(self, release_id: ObjectId, product_id: str, states: dict):
-        now = datetime.now(timezone.utc)
+        now = utils.get_utc_now()
         await self.collection.update_one(
             {"_id": release_id, "products.product_id": product_id},
             {
@@ -541,15 +577,8 @@ class ReleaseService:
             deadline = None
             if release_date and isinstance(release_date, datetime) and days_before > 0:
                 # Calculate deadline excluding weekends (Saturday=5, Sunday=6)
-                target_date = release_date
-                days_subtracted = 0
-                while days_subtracted < days_before:
-                    target_date = target_date - timedelta(days=1)
-                    # Skip weekends (0 = Monday, 6 = Sunday)
-                    if target_date.weekday() < 5:  # Monday-Friday (0-4)
-                        days_subtracted += 1
-                # Set default time to 6 PM SGT (18:00)
-                deadline = target_date.replace(hour=18, minute=0, second=0, microsecond=0)
+                # Calculate deadline excluding weekends
+                deadline = utils.calculate_deadline(release_date, days_before)
             template[str(stage["order"])] = self._blank_stage_state(
                 deadline=deadline
             )
@@ -577,7 +606,7 @@ class ReleaseService:
         changed = False
 
         if not states:
-            states = self._build_state_template(workflow, release_date) if release_date else self._build_state_template(workflow, datetime.now(timezone.utc))
+            states = self._build_state_template(workflow, release_date) if release_date else self._build_state_template(workflow, utils.get_utc_now())
             product["workflow_states"] = states
             changed = True
         else:
@@ -589,13 +618,8 @@ class ReleaseService:
                     deadline = None
                     if release_date and isinstance(release_date, datetime) and days_before > 0:
                         # Calculate deadline excluding weekends
-                        target_date = release_date
-                        days_subtracted = 0
-                        while days_subtracted < days_before:
-                            target_date = target_date - timedelta(days=1)
-                            if target_date.weekday() < 5:  # Monday-Friday
-                                days_subtracted += 1
-                        deadline = target_date.replace(hour=18, minute=0, second=0, microsecond=0)
+                        # Calculate deadline excluding weekends
+                        deadline = utils.calculate_deadline(release_date, days_before)
                     states[key] = self._blank_stage_state(deadline=deadline)
                     changed = True
 

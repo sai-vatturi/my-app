@@ -11,7 +11,8 @@
 
     <app-loading-spinner *ngIf="loading()" />
 
-    <div *ngIf="!loading() && squads().length > 0" class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+    <div *ngIf="!loading() && squads().length > 0"
+      class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
@@ -29,44 +30,92 @@
             </th>
             <th scope="col" class="px-8 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Actions
-          </th>
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <tr *ngFor="let squad of squads()" class="hover:bg-gray-50 transition-colors">
-          <td class="px-8 py-5 whitespace-nowrap">
-            <div class="text-sm font-semibold text-gray-900">{{ squad.name }}</div>
-          </td>
-          <td class="px-8 py-5">
-            <div class="text-sm text-gray-600">{{ squad.description || 'N/A' }}</div>
-          </td>
-          <td class="px-8 py-5">
-            <div class="text-sm text-gray-600">{{ squad.team_leads?.length || 0 }}</div>
-          </td>
-          <td class="px-8 py-5">
-            <div class="text-sm text-gray-600">{{ squad.products?.length || 0 }}</div>
-          </td>
-          <td class="px-8 py-5 whitespace-nowrap text-right text-sm font-medium space-x-3">
-            <a [routerLink]="['/squads', squad.id, 'edit']" class="text-primary-600 hover:text-primary-700 font-medium">
-              Edit
-            </a>
-            <button
-              (click)="deleteSquad(squad)"
-              class="text-red-600 hover:text-red-700 font-medium"
-              [disabled]="deleting() === squad.id">
-              {{ deleting() === squad.id ? 'Deleting...' : 'Delete' }}
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <ng-container *ngFor="let squad of squads()">
+            <tr (click)="toggleExpand(squad)" class="hover:bg-gray-50 transition-colors cursor-pointer group">
+              <td class="px-8 py-5 whitespace-nowrap">
+                <div class="flex items-center">
+                  <lucide-icon [img]="isExpanded(squad) ? ChevronDown : ChevronRight" [size]="16"
+                    class="text-gray-400 mr-2"></lucide-icon>
+                  <div class="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{{
+                    squad.name }}</div>
+                </div>
+              </td>
+              <td class="px-8 py-5">
+                <div class="text-sm text-gray-600 line-clamp-1">{{ squad.description || 'N/A' }}</div>
+              </td>
+              <td class="px-8 py-5">
+                <div class="text-sm text-gray-600">{{ squad.team_leads?.length || 0 }}</div>
+              </td>
+              <td class="px-8 py-5">
+                <span
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                  {{ getProductsForSquad(squad.id || squad._id).length }} products
+                </span>
+              </td>
+              <td class="px-8 py-5 whitespace-nowrap text-right text-sm font-medium space-x-3"
+                (click)="$event.stopPropagation()">
+                <a [routerLink]="['/squads', squad.id || squad._id, 'edit']"
+                  class="text-primary-600 hover:text-primary-700 font-medium">
+                  Edit
+                </a>
+                <button (click)="deleteSquad(squad)" class="text-red-600 hover:text-red-700 font-medium"
+                  [disabled]="deleting() === (squad.id || squad._id)">
+                  {{ deleting() === (squad.id || squad._id) ? 'Deleting...' : 'Delete' }}
+                </button>
+              </td>
+            </tr>
 
-  <div *ngIf="!loading() && squads().length === 0" class="text-center py-16 bg-white rounded-xl shadow-md border border-gray-100">
-    <p class="text-gray-500 text-lg mb-4">No squads found</p>
-    <app-button [routerLink]="['/squads/create']" class="mt-4">
-      Create your first squad
-    </app-button>
-  </div>
+            <!-- Expanded Details -->
+            <tr *ngIf="isExpanded(squad)" class="bg-gray-50">
+              <td colspan="5" class="px-8 py-6">
+                <div class="ml-6">
+                  <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                    <lucide-icon [img]="Package" [size]="16" class="mr-2 text-indigo-500"></lucide-icon>
+                    Associated Products
+                  </h4>
+                  <div class="bg-white rounded-lg border border-gray-200 p-4">
+                    <div class="flex flex-wrap gap-2">
+                      <ng-container *ngFor="let product of getProductsForSquad(squad.id || squad._id)">
+                        <span
+                          class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {{ product.name }}
+                        </span>
+                      </ng-container>
+                      <span *ngIf="getProductsForSquad(squad.id || squad._id).length === 0"
+                        class="text-sm text-gray-400 italic">
+                        No products associated with this squad.
+                      </span>
+                    </div>
+
+                    <div class="mt-4" *ngIf="squad.team_leads && squad.team_leads.length > 0">
+                      <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Team Leads</h5>
+                      <div class="flex flex-wrap gap-2">
+                        <span *ngFor="let lead of squad.team_leads"
+                          class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                          <lucide-icon [img]="Users" [size]="12" class="mr-1"></lucide-icon>
+                          {{ lead }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!loading() && squads().length === 0"
+      class="text-center py-16 bg-white rounded-xl shadow-md border border-gray-100">
+      <p class="text-gray-500 text-lg mb-4">No squads found</p>
+      <app-button [routerLink]="['/squads/create']" class="mt-4">
+        Create your first squad
+      </app-button>
+    </div>
   </div>
 </div>

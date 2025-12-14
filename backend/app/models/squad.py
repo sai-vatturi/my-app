@@ -10,6 +10,7 @@ class Squad:
         self.team_leads = kwargs.get('team_leads', [])
         self.principal_engineers = kwargs.get('principal_engineers', [])
         self.products = kwargs.get('products', [])
+        self.business_unit_id = kwargs.get('business_unit_id')
         self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
         self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
@@ -21,6 +22,7 @@ class Squad:
             'team_leads': self.team_leads,
             'principal_engineers': self.principal_engineers,
             'products': self.products,
+            'business_unit_id': self.business_unit_id,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

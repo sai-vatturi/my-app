@@ -2,11 +2,13 @@ import { Component, OnInit, ChangeDetectionStrategy, signal, computed } from '@a
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { LucideAngularModule, ChevronLeft, ChevronRight, Calendar, Clock, Tag, X } from 'lucide-angular';
+import { LucideAngularModule, ChevronLeft, ChevronRight, Calendar, Clock, Tag, X, Briefcase } from 'lucide-angular';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
 import { WorkflowService } from '../../../core/services/workflow.service';
+import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { Release } from '../../../core/models/release.model';
+import { BusinessUnit } from '../../../core/models/business-unit.model';
 
 interface CalendarEvent {
   type: 'release' | 'stage';
@@ -17,6 +19,7 @@ interface CalendarEvent {
   borderColor: string;
   data: any; // Release object
   stageOrder?: number;
+  businessUnitName?: string;
 }
 
 interface CalendarDay {
@@ -46,11 +49,14 @@ export class ReleaseCalendarComponent implements OnInit {
   readonly Clock = Clock;
   readonly Tag = Tag;
   readonly X = X;
+  readonly Briefcase = Briefcase;
 
   currentDate = signal<Date>(new Date());
   releases = signal<Release[]>([]);
   products = signal<any[]>([]);
   workflows = signal<Map<string, any>>(new Map()); // Map release_type -> WorkflowTemplate
+  businessUnits = signal<Map<string, string>>(new Map()); // Map ID -> Name
+  businessUnitList = signal<BusinessUnit[]>([]);
   selectedRelease = signal<Release | null>(null);
   selectedWorkflow = signal<any | null>(null);
   moreEventsDay = signal<CalendarDay | null>(null);
@@ -77,18 +83,26 @@ export class ReleaseCalendarComponent implements OnInit {
   });
 
   calendarWeeks = computed(() => {
-    return this.generateCalendar(this.currentDate(), this.releases(), this.workflows());
+    return this.generateCalendar(
+      this.currentDate(),
+      this.releases(),
+      this.workflows(),
+      this.businessUnits(),
+      this.businessUnitService.selectedBusinessUnitId()
+    );
   });
 
   constructor(
     private releaseService: ReleaseService,
     private productService: ProductService,
-    private workflowService: WorkflowService
+    private workflowService: WorkflowService,
+    public businessUnitService: BusinessUnitService
   ) { }
 
   ngOnInit(): void {
     this.loadProducts();
     this.loadWorkflows();
+    this.loadBusinessUnits();
     this.loadReleases();
   }
 
@@ -104,6 +118,23 @@ export class ReleaseCalendarComponent implements OnInit {
       workflows.forEach(w => map.set(w.release_type, w));
       this.workflows.set(map);
     });
+  }
+
+  private loadBusinessUnits(): void {
+    this.businessUnitService.getAll().subscribe(units => {
+      this.businessUnitList.set(units);
+      const map = new Map<string, string>();
+      units.forEach(u => {
+        if (u.id || u._id) map.set(u.id || u._id || '', u.name);
+      });
+      this.businessUnits.set(map);
+    });
+  }
+
+  onBusinessUnitChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const value = select.value;
+    this.businessUnitService.setSelectedUnit(value === 'all' ? null : value);
   }
 
   private loadReleases(): void {
@@ -145,7 +176,13 @@ export class ReleaseCalendarComponent implements OnInit {
     this.loadReleases();
   }
 
-  private generateCalendar(date: Date, releases: Release[], workflowMap: Map<string, any>): CalendarWeek[] {
+  private generateCalendar(
+    date: Date,
+    releases: Release[],
+    workflowMap: Map<string, any>,
+    businessUnitMap: Map<string, string>,
+    selectedUnitId: string | null
+  ): CalendarWeek[] {
     const year = date.getFullYear();
     const month = date.getMonth();
 
@@ -176,7 +213,7 @@ export class ReleaseCalendarComponent implements OnInit {
     // Current month days
     for (let day = 1; day <= daysInMonth; day++) {
       const dayDate = new Date(year, month, day);
-      const events = this.getEventsForDate(dayDate, releases, workflowMap);
+      const events = this.getEventsForDate(dayDate, releases, workflowMap, businessUnitMap, selectedUnitId);
 
       currentWeek.push({
         date: dayDate,
@@ -213,10 +250,21 @@ export class ReleaseCalendarComponent implements OnInit {
     return weeks;
   }
 
-  private getEventsForDate(date: Date, releases: Release[], workflowMap: Map<string, any>): CalendarEvent[] {
+  private getEventsForDate(
+    date: Date,
+    releases: Release[],
+    workflowMap: Map<string, any>,
+    businessUnitMap: Map<string, string>,
+    selectedUnitId: string | null
+  ): CalendarEvent[] {
     const events: CalendarEvent[] = [];
 
     releases.forEach(release => {
+      // Filter by Business Unit if selected
+      if (selectedUnitId && release.business_unit_id !== selectedUnitId) {
+        return;
+      }
+
       // 1. Release Event
       const releaseDate = new Date(release.release_date);
       if (this.isSameDay(releaseDate, date)) {
@@ -227,7 +275,8 @@ export class ReleaseCalendarComponent implements OnInit {
           date: releaseDate,
           color: this.getReleaseColor(release.release_type),
           borderColor: this.getReleaseBorderColor(release.release_type),
-          data: release
+          data: release,
+          businessUnitName: release.business_unit_id ? businessUnitMap.get(release.business_unit_id) : undefined
         });
       }
 
@@ -363,5 +412,10 @@ export class ReleaseCalendarComponent implements OnInit {
   getReleaseId(release: Release | null | undefined): string {
     if (!release) return '';
     return release.id || release._id || '';
+  }
+
+  getBusinessUnitName(release: Release | null): string {
+    if (!release || !release.business_unit_id) return '';
+    return this.businessUnits().get(release.business_unit_id) || '';
   }
 }

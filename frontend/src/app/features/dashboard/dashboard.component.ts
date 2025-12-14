@@ -1,9 +1,10 @@
-import { Component, OnInit, ChangeDetectionStrategy, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule, Rocket, Package, Users, Calendar } from 'lucide-angular';
 import { ReleaseService } from '../../core/services/release.service';
 import { ProductService } from '../../core/services/product.service';
 import { SquadService } from '../../core/services/squad.service';
+import { BusinessUnitService } from '../../core/services/business-unit.service';
 import { Release } from '../../core/models/release.model';
 
 interface DashboardStats {
@@ -21,7 +22,7 @@ interface DashboardStats {
   templateUrl: './dashboard.component.html',
   styles: []
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent {
   readonly Rocket = Rocket;
   readonly Package = Package;
   readonly Users = Users;
@@ -41,31 +42,38 @@ export class DashboardComponent implements OnInit {
   constructor(
     private releaseService: ReleaseService,
     private productService: ProductService,
-    private squadService: SquadService
-  ) {}
-
-  ngOnInit(): void {
-    this.loadDashboardData();
+    private squadService: SquadService,
+    private businessUnitService: BusinessUnitService
+  ) {
+    effect(() => {
+      const unitId = this.businessUnitService.selectedBusinessUnitId();
+      this.loadDashboardData(unitId);
+    });
   }
 
-  private loadDashboardData(): void {
+  private loadDashboardData(unitId: string | null): void {
     const currentYear = new Date().getFullYear();
 
     // Load releases
     this.releaseService.getAll().subscribe(releases => {
-      const releasesThisYear = releases.filter(r => {
+      let filteredReleases = releases;
+      if (unitId) {
+        filteredReleases = releases.filter(r => r.business_unit_id === unitId);
+      }
+
+      const releasesThisYear = filteredReleases.filter(r => {
         const releaseYear = new Date(r.release_date).getFullYear();
         return releaseYear === currentYear;
       });
 
-      const upcomingRelease = this.findUpcomingRelease(releases);
-      const upcomingDate = upcomingRelease 
+      const upcomingRelease = this.findUpcomingRelease(filteredReleases);
+      const upcomingDate = upcomingRelease
         ? this.formatDate(upcomingRelease.release_date)
         : null;
 
       // Count active and completed releases
-      const active = releases.filter(r => r.status?.toLowerCase() !== 'completed').length;
-      const completed = releases.filter(r => r.status?.toLowerCase() === 'completed').length;
+      const active = filteredReleases.filter(r => r.status?.toLowerCase() !== 'completed').length;
+      const completed = filteredReleases.filter(r => r.status?.toLowerCase() === 'completed').length;
 
       this.stats.update(s => ({
         ...s,
@@ -79,17 +87,25 @@ export class DashboardComponent implements OnInit {
 
     // Load products
     this.productService.getAll().subscribe(products => {
+      let filteredProducts = products;
+      if (unitId) {
+        filteredProducts = products.filter(p => p.business_unit_id === unitId);
+      }
       this.stats.update(s => ({
         ...s,
-        totalProducts: products.length
+        totalProducts: filteredProducts.length
       }));
     });
 
     // Load squads
     this.squadService.getAll().subscribe(squads => {
+      let filteredSquads = squads;
+      if (unitId) {
+        filteredSquads = squads.filter(s => s.business_unit_id === unitId);
+      }
       this.stats.update(s => ({
         ...s,
-        totalSquads: squads.length
+        totalSquads: filteredSquads.length
       }));
     });
   }
@@ -105,10 +121,10 @@ export class DashboardComponent implements OnInit {
 
   private formatDate(dateString: string): string {
     const date = new Date(dateString);
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     };
     return date.toLocaleDateString('en-US', options);
   }

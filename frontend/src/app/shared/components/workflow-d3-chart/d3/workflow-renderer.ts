@@ -291,6 +291,19 @@ export class WorkflowRenderer {
                     .attr('class', 'stage-node')
                     .attr('transform', `translate(${stageX}, ${productY})`);
 
+                // Check for Overdue
+                const deadline = state?.deadline;
+                let isOverdue = false;
+                if (deadline && status !== 'completed') {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // compare dates only
+                    const dDate = new Date(deadline);
+                    dDate.setHours(0, 0, 0, 0);
+                    if (dDate < today) {
+                        isOverdue = true;
+                    }
+                }
+
                 // Stage box with dynamic width
                 stageGroup.append('rect')
                     .attr('width', actualStageWidth)
@@ -298,8 +311,8 @@ export class WorkflowRenderer {
                     .attr('x', -actualStageWidth / 2)
                     .attr('y', -nodeHeight / 2)
                     .attr('fill', this.getStageColor(status))
-                    .attr('stroke', this.getStageBorderColor(status))
-                    .attr('stroke-width', 2);
+                    .attr('stroke', isOverdue ? '#f87171' : this.getStageBorderColor(status)) // Softer red (red-400)
+                    .attr('stroke-width', isOverdue ? 2.5 : 2); // Thicker border for overdue
 
                 // Add text - bold only for current stage
                 stageGroup.append('text')
@@ -318,6 +331,24 @@ export class WorkflowRenderer {
                         .text(productName)
                         .style('font-size', '10px')
                         .style('fill', '#6b7280') // Light gray
+                        .style('text-anchor', 'start');
+                }
+
+                // Deadline (User Request: "outside and bottom left", same color as product name)
+                if (deadline) {
+                    // format date - assuming ISO string YYYY-MM-DD
+                    const dateObj = new Date(deadline);
+                    const formattedDate = !isNaN(dateObj.getTime())
+                        ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                        : deadline;
+
+                    stageGroup.append('text')
+                        .attr('x', -actualStageWidth / 2 + 5) // Left aligned
+                        .attr('y', nodeHeight / 2 + 12)       // Below the box (outside)
+                        .text(formattedDate) // Just the date
+                        .style('font-size', '10px')
+                        .style('fill', isOverdue ? '#f87171' : '#6b7280') // Softer red if overdue, else gray like product
+                        .style('font-weight', isOverdue ? 'bold' : 'normal')
                         .style('text-anchor', 'start');
                 }
 

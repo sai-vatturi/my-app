@@ -54,6 +54,7 @@ class ReleaseBase(BaseModel):
     products: List[ReleaseProduct] = Field(default_factory=list)
     workflow_states: Dict[str, WorkflowStageState] = Field(default_factory=dict)
     custom_attachments: List[CustomAttachment] = Field(default_factory=list)
+    business_unit_id: Optional[str] = None
 
 class ReleaseCreate(ReleaseBase):
     pass
@@ -68,6 +69,7 @@ class ReleaseUpdate(BaseModel):
     jira_release_version: Optional[str] = None
     chg_number: Optional[str] = None
     products: Optional[List[ReleaseProduct]] = None
+    business_unit_id: Optional[str] = None
 
 class TimelineUpdate(BaseModel):
     product_id: Optional[str] = None

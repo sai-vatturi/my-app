@@ -30,6 +30,7 @@ class SquadBase(BaseModel):
     team_leads: Optional[List[str]] = Field(default_factory=list)  # Multiple team leads (optional)
     principal_engineers: Optional[List[str]] = Field(default_factory=list)  # Multiple principal engineers (optional)
     products: Optional[List[str]] = Field(default_factory=list)  # Products (optional)
+    business_unit_id: Optional[str] = None  # Link to Business Unit
 
 class SquadCreate(SquadBase):
     pass
@@ -40,6 +41,7 @@ class SquadUpdate(BaseModel):
     team_leads: Optional[List[str]] = None
     principal_engineers: Optional[List[str]] = None
     products: Optional[List[str]] = None
+    business_unit_id: Optional[str] = None
 
 class SquadResponse(SquadBase):
     id: PyObjectId = Field(alias="_id")

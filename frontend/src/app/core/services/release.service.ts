@@ -85,6 +85,19 @@ export class ReleaseService {
     );
   }
 
+  revertProductStage(releaseId: string, productId: string): Observable<Release> {
+    return this.api.post<Release>(
+      `/releases/${releaseId}/products/${productId}/revert-stage`,
+      {}
+    ).pipe(
+      tap(updatedRelease => {
+        this.releasesSignal.update(releases =>
+          releases.map(r => (r.id === releaseId || r._id === releaseId) ? updatedRelease : r)
+        );
+      })
+    );
+  }
+
   advanceProductStage(releaseId: string, productId: string): Observable<Release> {
     return this.api.post<Release>(
       `/releases/${releaseId}/products/${productId}/advance-stage`,

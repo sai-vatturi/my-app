@@ -4,6 +4,7 @@ from bson import ObjectId
 
 from app.schemas.product import ProductCreate, ProductUpdate
 from app.models.product import Product
+from app.core import utils
 
 class ProductService:
     def __init__(self, db):
@@ -43,19 +44,16 @@ class ProductService:
         product_id = str(created_product["_id"])
         
         # Update squads to include this product (two-way relationship)
+        # Update squads to include this product (two-way relationship)
         if product_data.squads:
-            from app.services.squad_service import SquadService
-            squad_service = SquadService(self.db)
-            for squad_id in product_data.squads:
-                squad = await squad_service.get_squad_by_id(squad_id)
-                if squad:
-                    products = squad.get("products", [])
-                    if product_id not in products:
-                        products.append(product_id)
-                        await self.db.squads.update_one(
-                            {"_id": ObjectId(squad_id)},
-                            {"$set": {"products": products, "updated_at": datetime.now(timezone.utc)}}
-                        )
+             await utils.update_relationship(
+                self.db,
+                "squads",
+                product_id,
+                "products",
+                set(),
+                set(product_data.squads)
+            )
         
         return created_product
 
@@ -84,34 +82,14 @@ class ProductService:
             )
         
         # Update squad relationships (two-way)
-        from app.services.squad_service import SquadService
-        squad_service = SquadService(self.db)
-        
-        # Remove product from squads that are no longer associated
-        removed_squads = old_squads - new_squads
-        for squad_id in removed_squads:
-            squad = await squad_service.get_squad_by_id(squad_id)
-            if squad:
-                products = squad.get("products", [])
-                if product_id in products:
-                    products.remove(product_id)
-                    await self.db.squads.update_one(
-                        {"_id": ObjectId(squad_id)},
-                        {"$set": {"products": products, "updated_at": datetime.now(timezone.utc)}}
-                    )
-        
-        # Add product to new squads
-        added_squads = new_squads - old_squads
-        for squad_id in added_squads:
-            squad = await squad_service.get_squad_by_id(squad_id)
-            if squad:
-                products = squad.get("products", [])
-                if product_id not in products:
-                    products.append(product_id)
-                    await self.db.squads.update_one(
-                        {"_id": ObjectId(squad_id)},
-                        {"$set": {"products": products, "updated_at": datetime.now(timezone.utc)}}
-                    )
+        await utils.update_relationship(
+            self.db,
+            "squads",
+            product_id,
+            "products",
+            set(old_squads),
+            set(new_squads)
+        )
         
         updated_product = await self.collection.find_one({"_id": ObjectId(product_id)})
         return updated_product
@@ -121,17 +99,16 @@ class ProductService:
         product = await self.collection.find_one({"_id": ObjectId(product_id)})
         if product:
             # Remove product from all associated squads
-            squads = product.get("squads", [])
-            for squad_id in squads:
-                squad = await self.db.squads.find_one({"_id": ObjectId(squad_id)})
-                if squad:
-                    products = squad.get("products", [])
-                    if product_id in products:
-                        products.remove(product_id)
-                        await self.db.squads.update_one(
-                            {"_id": ObjectId(squad_id)},
-                            {"$set": {"products": products, "updated_at": datetime.now(timezone.utc)}}
-                        )
+            # Remove product from all associated squads
+            squads = set(product.get("squads", []))
+            await utils.update_relationship(
+                self.db,
+                "squads",
+                product_id,
+                "products",
+                squads,
+                set()
+            )
         
         result = await self.collection.delete_one({"_id": ObjectId(product_id)})
         return result.deleted_count > 0

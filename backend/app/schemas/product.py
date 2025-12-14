@@ -36,6 +36,8 @@ class ProductBase(BaseModel):
     principal_engineers: Optional[List[str]] = Field(default_factory=list)  # Multiple principal engineers (optional)
     jira_boards: List[JiraBoardInfo] = Field(default_factory=list)  # Required JIRA boards per product
     squads: Optional[List[str]] = Field(default_factory=list)  # Optional squads
+    business_unit_id: Optional[str] = None
+    application_ids: List[str] = Field(default_factory=list)  # Link to applications
 
 class ProductCreate(ProductBase):
     pass
@@ -48,6 +50,8 @@ class ProductUpdate(BaseModel):
     principal_engineers: Optional[List[str]] = None
     jira_boards: Optional[List[JiraBoardInfo]] = None
     squads: Optional[List[str]] = None
+    business_unit_id: Optional[str] = None
+    application_ids: Optional[List[str]] = None
 
 class ProductResponse(ProductBase):
     id: PyObjectId = Field(alias="_id")

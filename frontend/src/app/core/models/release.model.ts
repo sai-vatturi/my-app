@@ -41,8 +41,9 @@ export interface Release {
   products: ReleaseProduct[];  // Products in the release
   workflow_states?: { [key: string]: WorkflowStageState }; // Release-level default timeline
   custom_attachments?: CustomAttachment[];
-  created_at: string;
-  updated_at: string;
+  business_unit_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ReleaseCreate {

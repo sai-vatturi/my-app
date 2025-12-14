@@ -13,6 +13,8 @@ export interface Product {
   principal_engineers?: string[];
   jira_boards: JiraBoardInfo[];
   squads?: string[];
+  business_unit_id?: string;
+  application_ids?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +27,8 @@ export interface ProductCreate {
   principal_engineers?: string[];
   jira_boards?: JiraBoardInfo[];
   squads?: string[];
+  business_unit_id?: string;
+  application_ids?: string[];
 }
 
 export interface ProductUpdate {
@@ -35,4 +39,6 @@ export interface ProductUpdate {
   principal_engineers?: string[];
   jira_boards?: JiraBoardInfo[];
   squads?: string[];
+  business_unit_id?: string;
+  application_ids?: string[];
 }

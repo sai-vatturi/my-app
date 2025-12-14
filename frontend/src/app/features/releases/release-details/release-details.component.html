@@ -4,13 +4,24 @@
     <app-alert *ngIf="error()" [message]="error()!" type="error" />
 
     <!-- Header -->
-    <div *ngIf="release()" class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100">
+    <div *ngIf="release()" class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100 table-responsive">
       <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
         <div class="flex-1">
           <h1 class="text-2xl md:text-3xl font-bold text-gray-900">{{ release()!.name }}</h1>
           <p *ngIf="release()!.description" class="mt-2 md:mt-3 text-gray-600 text-sm md:text-base">{{
             release()!.description }}</p>
+
+          <!-- Metadata Badges -->
           <div class="mt-4 md:mt-5 flex flex-wrap gap-2 md:gap-3 items-center">
+            <span *ngIf="businessUnitName()"
+              class="inline-flex items-center px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+              <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                </path>
+              </svg>
+              {{ businessUnitName() }}
+            </span>
             <span [ngClass]="getTypeBadgeClass(release()!.release_type)"
               class="inline-flex items-center px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold rounded-full">
               {{ release()!.release_type }}
@@ -18,6 +29,20 @@
             <span [ngClass]="getStatusBadgeClass(release()!.status)"
               class="inline-flex items-center px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold rounded-full">
               {{ release()!.status }}
+            </span>
+          </div>
+
+          <!-- Associated Applications -->
+          <div class="mt-4 flex flex-wrap gap-2 items-center" *ngIf="associatedApplications().length > 0">
+            <span class="text-sm font-medium text-gray-500 mr-2">Applications:</span>
+            <span *ngFor="let appName of associatedApplications()"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-blue-50 text-blue-700 border border-blue-100">
+              <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                </path>
+              </svg>
+              {{ appName }}
             </span>
           </div>
         </div>
@@ -46,7 +71,13 @@
     <div *ngIf="release() && workflow()" #workflowContainer
       class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100 overflow-visible relative min-h-[500px]">
       <!-- overflow-visible for the popup to show if needed, though fixed pos handles it -->
-      <h2 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Release Workflow</h2>
+      <div class="flex justify-between items-center mb-4 md:mb-6">
+        <h2 class="text-lg md:text-xl font-semibold">Release Workflow</h2>
+        <span *ngIf="currentDateSGT()"
+          class="text-xs md:text-sm font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100 shadow-sm">
+          {{ currentDateSGT() }}
+        </span>
+      </div>
       <div class="min-w-full">
         <app-workflow-d3-chart [release]="release()!" [workflow]="workflow()!" [products]="products()"
           [productMap]="productMap" (stageClicked)="onStageClicked($event)">
@@ -57,10 +88,9 @@
       <app-stage-action-card *ngIf="selectedStageInfo() && cardPosition()" [style.position]="'absolute'"
         [style.left.px]="cardPosition()?.x" [style.top.px]="cardPosition()?.y" [style.zIndex]="'100'"
         [stage]="selectedStageInfo()!.stage" [state]="selectedStageInfo()!.state" [status]="selectedStageInfo()!.status"
-        [isProcessing]="processingAction()" (onAdvance)="advanceStageFromCard()"
-        (onUpload)="uploadAttachmentFromCard($event)" (onDownload)="downloadAttachmentFromCard($event)"
-        (onDownloadAll)="downloadAllAttachmentsFromCard()" (onDelete)="deleteAttachmentFromCard($event)"
-        (close)="closeStageCard()">
+        [isProcessing]="processingAction()" [canRevert]="canRevertStage()" (onAdvance)="advanceStageFromCard()"
+        (onRevert)="revertStageFromCard()" (onUpload)="uploadAttachmentFromCard($event)"
+        (onDownload)="downloadAttachmentFromCard($event)" (onDownloadAll)="downloadAllAttachmentsFromCard()"
         (onDelete)="deleteAttachmentFromCard($event)" (close)="closeStageCard()">
       </app-stage-action-card>
 
@@ -68,39 +98,29 @@
       <div *ngIf="selectedStageInfo()" class="fixed inset-0 z-40 bg-transparent" (click)="closeStageCard()"></div>
     </div>
 
-    <!-- Release Details and Scope -->
-    <div *ngIf="release()" class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-      <!-- Release Info -->
-      <div class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100">
-        <h2 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Release Details</h2>
-        <dl class="space-y-4">
-          <div>
-            <dt class="text-sm font-medium text-gray-500">Release Date</dt>
-            <dd class="mt-1 text-sm text-gray-900">{{ formatDate(release()!.release_date) }}</dd>
-          </div>
-          <div *ngIf="release()!.chg_number">
-            <dt class="text-sm font-medium text-gray-500">Change Request</dt>
-            <dd class="mt-1 text-sm text-primary-600">
-              <a href="#" class="hover:text-primary-900">{{ release()!.chg_number }}</a>
-            </dd>
-          </div>
-          <div *ngIf="release()!.jira_release_version">
-            <dt class="text-sm font-medium text-gray-500">JIRA Release Version</dt>
-            <dd class="mt-1 text-sm text-gray-900">{{ release()!.jira_release_version }}</dd>
-          </div>
-          <div>
-            <dt class="text-sm font-medium text-gray-500">Products Involved</dt>
-            <dd class="mt-1 text-sm text-gray-900">{{ release()!.products.length }}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <!-- Scope Overview -->
-      <div class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100">
-        <h2 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Overall Scope</h2>
-        <p class="text-sm text-gray-700 leading-relaxed">{{ release()!.overall_scope || 'No scope description provided'
-          }}</p>
-      </div>
+    <!-- Release Details -->
+    <div *ngIf="release()" class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100">
+      <h2 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Release Details</h2>
+      <dl class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div>
+          <dt class="text-sm font-medium text-gray-500">Release Date</dt>
+          <dd class="mt-1 text-sm text-gray-900">{{ formatDate(release()!.release_date) }}</dd>
+        </div>
+        <div *ngIf="release()!.chg_number">
+          <dt class="text-sm font-medium text-gray-500">Change Request</dt>
+          <dd class="mt-1 text-sm text-primary-600">
+            <a href="#" class="hover:text-primary-900">{{ release()!.chg_number }}</a>
+          </dd>
+        </div>
+        <div *ngIf="release()!.jira_release_version">
+          <dt class="text-sm font-medium text-gray-500">JIRA Release Version</dt>
+          <dd class="mt-1 text-sm text-gray-900">{{ release()!.jira_release_version }}</dd>
+        </div>
+        <div>
+          <dt class="text-sm font-medium text-gray-500">Products Involved</dt>
+          <dd class="mt-1 text-sm text-gray-900">{{ release()!.products.length }}</dd>
+        </div>
+      </dl>
     </div>
 
     <!-- Products Table -->

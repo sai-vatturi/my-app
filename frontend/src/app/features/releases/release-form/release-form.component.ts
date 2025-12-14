@@ -5,9 +5,11 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
 import { WorkflowService } from '../../../core/services/workflow.service';
+import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { ReleaseCreate, ReleaseUpdate, ReleaseType, ReleaseProduct } from '../../../core/models/release.model';
 import { Product } from '../../../core/models/product.model';
 import { WorkflowTemplate } from '../../../core/models/workflow.model';
+import { BusinessUnit } from '../../../core/models/business-unit.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
@@ -45,7 +47,9 @@ export class ReleaseFormComponent implements OnInit {
   error = signal<string | null>(null);
   availableProducts = signal<Product[]>([]);
   availableWorkflows = signal<WorkflowTemplate[]>([]);
+  businessUnits = signal<BusinessUnit[]>([]);
   releaseTypes = signal<string[]>([]);
+  loadingBusinessUnits = signal(false);
 
   selectedWorkflow = computed(() => {
     const type = this.createdRelease()?.release_type || this.form.get('release_type')?.value;
@@ -63,12 +67,14 @@ export class ReleaseFormComponent implements OnInit {
     private releaseService: ReleaseService,
     private productService: ProductService,
     private workflowService: WorkflowService,
+    private businessUnitService: BusinessUnitService,
     private router: Router,
     private route: ActivatedRoute
   ) {
     this.form = this.fb.group({
       name: ['', Validators.required],
       description: [''],
+      business_unit_id: [''],
       release_type: [ReleaseType.MAJOR_RELEASE, Validators.required],
       status: ['planned'],
       release_date: ['', Validators.required],
@@ -80,6 +86,7 @@ export class ReleaseFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadWorkflows();
+    this.loadBusinessUnits();
     this.releaseId = this.route.snapshot.paramMap.get('id');
     this.isEdit = !!this.releaseId;
     if (this.isEdit && this.releaseId) this.loadRelease(this.releaseId);
@@ -93,6 +100,19 @@ export class ReleaseFormComponent implements OnInit {
         const id = p.id || p._id;
         if (id) this.productMap.set(id, p.name);
       });
+    });
+  }
+
+  loadBusinessUnits(): void {
+    this.loadingBusinessUnits.set(true);
+    this.businessUnitService.getAll().subscribe({
+      next: (units) => {
+        this.businessUnits.set(units);
+        this.loadingBusinessUnits.set(false);
+      },
+      error: () => {
+        this.loadingBusinessUnits.set(false);
+      }
     });
   }
 
@@ -129,6 +149,7 @@ export class ReleaseFormComponent implements OnInit {
         this.form.patchValue({
           name: release.name,
           description: release.description || '',
+          business_unit_id: release.business_unit_id || '',
           release_type: release.release_type,
           status: release.status,
           release_date: formattedDate,
@@ -178,7 +199,8 @@ export class ReleaseFormComponent implements OnInit {
         next: (updated) => {
           this.submitting.set(false);
           this.createdRelease.set(updated);
-          this.currentStep.set(2);
+          // If editing, we save and exit directly from step 1
+          this.finish();
         },
         error: (err) => {
           this.submitting.set(false);

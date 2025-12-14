@@ -19,6 +19,7 @@ class Release:
         self.workflow_states = kwargs.get('workflow_states', {})
         # Custom attachments not tied to specific workflow stages
         self.custom_attachments = kwargs.get('custom_attachments', [])
+        self.business_unit_id = kwargs.get('business_unit_id')
         self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
         self.updated_at = kwargs.get('updated_at', datetime.now(timezone.utc))
 
@@ -36,6 +37,7 @@ class Release:
             'products': self.products,
             'workflow_states': self.workflow_states,
             'custom_attachments': self.custom_attachments,
+            'business_unit_id': self.business_unit_id,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

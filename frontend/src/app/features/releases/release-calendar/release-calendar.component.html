@@ -21,6 +21,26 @@
 
         <!-- Month & Year Dropdowns -->
         <div class="flex items-center gap-2">
+          <!-- Business Unit Selector -->
+          <div class="relative">
+            <select [ngModel]="businessUnitService.selectedBusinessUnitId() || 'all'"
+              (change)="onBusinessUnitChange($event)"
+              class="pl-8 pr-8 py-1.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors cursor-pointer appearance-none">
+              <option value="all">All Business Units</option>
+              <option *ngFor="let unit of businessUnitList()" [value]="unit.id || unit._id">
+                {{ unit.name }}
+              </option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
+              <lucide-icon [img]="Briefcase" [size]="14" class="text-gray-500"></lucide-icon>
+            </div>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+              <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+              </svg>
+            </div>
+          </div>
+
           <select [ngModel]="currentDate().getMonth()" (ngModelChange)="onMonthChange($event)"
             class="px-2.5 py-1.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors cursor-pointer">
             <option *ngFor="let month of months; let i = index" [value]="i">
@@ -81,8 +101,15 @@
                 <div class="font-semibold truncate text-gray-900">{{ event.title }}</div>
                 <div class="flex items-center justify-between mt-0.5">
                   <span class="text-gray-700 text-[9px]">{{ event.time }}</span>
-                  <span *ngIf="event.type === 'stage'"
-                    class="text-[8px] px-1 rounded bg-white bg-opacity-50 text-gray-600">Stage</span>
+                  <div class="flex gap-1">
+                    <span *ngIf="event.businessUnitName"
+                      class="text-[8px] px-1 rounded bg-white bg-opacity-75 text-gray-700 font-medium flex items-center">
+                      <lucide-icon [img]="Briefcase" [size]="8" class="mr-0.5"></lucide-icon>
+                      {{ event.businessUnitName }}
+                    </span>
+                    <span *ngIf="event.type === 'stage'"
+                      class="text-[8px] px-1 rounded bg-white bg-opacity-50 text-gray-600">Stage</span>
+                  </div>
                 </div>
               </div>
             </ng-container>
@@ -116,6 +143,11 @@
               [class.text-purple-900]="selectedRelease()?.release_type === 'Hotfix & Data patch'">
               <lucide-icon [img]="Tag" [size]="12" class="mr-1"></lucide-icon>
               {{ selectedRelease()?.release_type }}
+            </span>
+            <span *ngIf="getBusinessUnitName(selectedRelease())"
+              class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+              <lucide-icon [img]="Briefcase" [size]="12" class="mr-1"></lucide-icon>
+              {{ getBusinessUnitName(selectedRelease()) }}
             </span>
             <span class="text-sm text-gray-600">
               Status: <span class="font-medium">{{ selectedRelease()?.status }}</span>

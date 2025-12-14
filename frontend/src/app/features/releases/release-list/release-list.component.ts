@@ -1,7 +1,8 @@
-import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { ReleaseService } from '../../../core/services/release.service';
+import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { Release } from '../../../core/models/release.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
@@ -27,10 +28,24 @@ export class ReleaseListComponent implements OnInit {
   error = signal<string | null>(null);
   deleting = signal<string | null>(null);
 
-  constructor(public releaseService: ReleaseService) { }
+  constructor(
+    public releaseService: ReleaseService,
+    private businessUnitService: BusinessUnitService
+  ) { }
+
+  filteredReleases = computed(() => {
+    const releases = this.releaseService.releases();
+    const selectedUnitId = this.businessUnitService.selectedBusinessUnitId();
+
+    if (!selectedUnitId) {
+      return releases;
+    }
+
+    return releases.filter(r => r.business_unit_id === selectedUnitId);
+  });
 
   get releases() {
-    return this.releaseService.releases;
+    return this.filteredReleases;
   }
 
   ngOnInit(): void {

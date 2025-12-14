@@ -31,11 +31,20 @@ export interface StageAction {
 
       <!-- Header -->
       <div class="flex justify-between items-start">
-        <div>
-          <h3 class="font-bold text-gray-900">{{ stage.name }}</h3>
-          <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">
-            {{ getStatusLabel() }}
-          </span>
+        <div class="flex items-start gap-2">
+            <!-- Revert Button -->
+            <button *ngIf="canRevert" (click)="onRevert.emit()" [disabled]="isProcessing"
+                class="mt-0.5 text-gray-400 hover:text-red-600 transition-colors p-0.5 rounded hover:bg-red-50" title="Revert to previous stage">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+            </button>
+            <div>
+                <h3 class="font-bold text-gray-900 leading-tight">{{ stage.name }}</h3>
+                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                    {{ getStatusLabel() }}
+                </span>
+            </div>
         </div>
         <button (click)="close.emit()" class="text-gray-400 hover:text-gray-600 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,7 +138,10 @@ export class StageActionCardComponent {
   @Input() status: 'completed' | 'current' | 'upcoming' = 'upcoming';
   @Input() isProcessing = false;
 
+  @Input() canRevert = false;
+
   @Output() onAdvance = new EventEmitter<void>();
+  @Output() onRevert = new EventEmitter<void>();
   @Output() onUpload = new EventEmitter<File[]>();
   @Output() onDownload = new EventEmitter<any>();
   @Output() onDownloadAll = new EventEmitter<void>();

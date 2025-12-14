@@ -1,0 +1,20 @@
+<div *ngIf="isVisible()" class="absolute top-4 right-8 z-50">
+    <div class="relative group">
+        <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+            <lucide-icon [img]="Briefcase" [size]="14" class="text-gray-500"></lucide-icon>
+        </div>
+        <select [ngModel]="businessUnitService.selectedBusinessUnitId() || 'all'" (change)="onUnitChange($event)"
+            class="appearance-none bg-white bg-opacity-90 hover:bg-opacity-100 border border-gray-200 shadow-sm text-gray-700 text-xs font-medium rounded-full py-1.5 pl-8 pr-8 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:shadow-md"
+            style="min-width: 140px;">
+            <option value="all">All Business Units</option>
+            <option *ngFor="let unit of businessUnits()" [value]="unit.id || unit._id">
+                {{ unit.name }}
+            </option>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+            <svg class="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+            </svg>
+        </div>
+    </div>
+</div>

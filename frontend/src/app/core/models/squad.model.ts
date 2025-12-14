@@ -6,8 +6,9 @@ export interface Squad {
   team_leads?: string[];
   principal_engineers?: string[];
   products?: string[];
-  created_at: string;
-  updated_at: string;
+  business_unit_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SquadCreate {

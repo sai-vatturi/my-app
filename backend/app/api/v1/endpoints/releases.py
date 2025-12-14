@@ -64,6 +64,16 @@ async def delete_release(release_id: str, db = Depends(get_database)):
         raise HTTPException(status_code=404, detail="Release not found")
     return {"message": "Release deleted successfully"}
 
+@router.post("/{release_id}/products/{product_id}/revert-stage", response_model=ReleaseResponse)
+async def revert_product_stage(
+    release_id: str,
+    product_id: str,
+    db = Depends(get_database)
+):
+    """Revert the last completed workflow stage for a product"""
+    service = ReleaseService(db)
+    return await service.revert_product_stage(release_id, product_id)
+
 @router.post("/{release_id}/products/{product_id}/advance-stage", response_model=ReleaseResponse)
 async def advance_product_stage(
     release_id: str,

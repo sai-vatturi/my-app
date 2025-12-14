@@ -1,0 +1,134 @@
+<div class="max-w-7xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Applications</h1>
+            <p class="mt-1 text-sm text-gray-500">Manage your applications catalog</p>
+        </div>
+        <a routerLink="/applications/new"
+            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <lucide-icon [img]="Plus" [size]="20" class="mr-2"></lucide-icon>
+            Add Application
+        </a>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading()" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent">
+        </div>
+        <p class="mt-2 text-gray-500">Loading applications...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!loading() && applications().length === 0" class="text-center py-12 bg-white rounded-lg shadow">
+        <lucide-icon [img]="AppWindow" [size]="48" class="mx-auto text-gray-400 mb-4"></lucide-icon>
+        <h3 class="text-lg font-medium text-gray-900">No applications found</h3>
+        <p class="mt-1 text-gray-500">Get started by creating a new application.</p>
+        <div class="mt-6">
+            <a routerLink="/applications/new"
+                class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                <lucide-icon [img]="Plus" [size]="20" class="mr-2"></lucide-icon>
+                Add Application
+            </a>
+        </div>
+    </div>
+
+    <!-- Applications Table -->
+    <div *ngIf="!loading() && applications().length > 0"
+        class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                    </th>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Description
+                    </th>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Products Count
+                    </th>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created At
+                    </th>
+                    <th scope="col" class="relative px-6 py-3">
+                        <span class="sr-only">Actions</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                <ng-container *ngFor="let app of applications()">
+                    <tr (click)="toggleExpand(app)" class="hover:bg-gray-50 transition-colors cursor-pointer group">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <lucide-icon [img]="isExpanded(app) ? ChevronDown : ChevronRight" [size]="16"
+                                    class="text-gray-400 mr-2"></lucide-icon>
+                                <div
+                                    class="flex-shrink-0 h-10 w-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                                    <lucide-icon [img]="AppWindow" [size]="20" class="text-indigo-600"></lucide-icon>
+                                </div>
+                                <div class="ml-4">
+                                    <div
+                                        class="text-sm font-medium text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                        {{ app.name }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-sm text-gray-500 line-clamp-1">{{ app.description || 'N/A' }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ getProductsForApplication(app.id || app._id).length }} products
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ app.created_at | date }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+                            (click)="$event.stopPropagation()">
+                            <a [routerLink]="['/applications', app.id || app._id, 'edit']"
+                                class="text-indigo-600 hover:text-indigo-900 mr-4">
+                                <lucide-icon [img]="Edit2" [size]="18" class="inline"></lucide-icon>
+                            </a>
+                            <button (click)="deleteApplication(app)" class="text-red-600 hover:text-red-900">
+                                <lucide-icon [img]="Trash2" [size]="18" class="inline"></lucide-icon>
+                            </button>
+                        </td>
+                    </tr>
+
+                    <!-- Expanded Details -->
+                    <tr *ngIf="isExpanded(app)" class="bg-gray-50">
+                        <td colspan="5" class="px-6 py-4">
+                            <div class="ml-14">
+                                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                                    <lucide-icon [img]="Package" [size]="16" class="mr-2 text-indigo-500"></lucide-icon>
+                                    Associated Products
+                                </h4>
+                                <div class="bg-white rounded-lg border border-gray-200 p-4">
+                                    <div class="flex flex-wrap gap-2">
+                                        <ng-container
+                                            *ngFor="let product of getProductsForApplication(app.id || app._id)">
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                                {{ product.name }}
+                                            </span>
+                                        </ng-container>
+                                        <span *ngIf="getProductsForApplication(app.id || app._id).length === 0"
+                                            class="text-sm text-gray-400 italic">
+                                            No products associated with this application.
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </ng-container>
+            </tbody>
+        </table>
+    </div>
+</div>

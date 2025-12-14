@@ -4,8 +4,12 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormArray, For
 import { Router, ActivatedRoute } from '@angular/router';
 import { ProductService } from '../../../core/services/product.service';
 import { SquadService } from '../../../core/services/squad.service';
+import { BusinessUnitService } from '../../../core/services/business-unit.service';
+import { ApplicationService } from '../../../core/services/application.service';
 import { ProductCreate, ProductUpdate, JiraBoardInfo } from '../../../core/models/product.model';
 import { Squad } from '../../../core/models/squad.model';
+import { BusinessUnit } from '../../../core/models/business-unit.model';
+import { Application } from '../../../core/models/application.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
@@ -22,7 +26,7 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './product-form.component.html',
-  })
+})
 export class ProductFormComponent implements OnInit {
   form: FormGroup;
   isEdit = false;
@@ -31,9 +35,13 @@ export class ProductFormComponent implements OnInit {
   submitting = signal(false);
   error = signal<string | null>(null);
   squads = signal<Squad[]>([]);
+  businessUnits = signal<BusinessUnit[]>([]);
+  applications = signal<Application[]>([]);
   loadingSquads = signal(false);
-  
-  // Computed signal for available squads (reactive to form changes)
+  loadingBusinessUnits = signal(false);
+  loadingApplications = signal(false);
+
+  // Computed signal for available squads
   availableSquads = computed(() => {
     const allSquads = this.squads();
     const selectedSquadIds = this.squadsFormArray.controls.map(control => String(control.value || ''));
@@ -43,21 +51,35 @@ export class ProductFormComponent implements OnInit {
     });
   });
 
+  // Computed signal for available applications
+  availableApplications = computed(() => {
+    const allApps = this.applications();
+    const selectedAppIds = this.applicationsFormArray.controls.map(control => String(control.value || ''));
+    return allApps.filter(app => {
+      const appId = String(app.id || app._id || '');
+      return !selectedAppIds.includes(appId);
+    });
+  });
+
   constructor(
     private fb: FormBuilder,
     private productService: ProductService,
     private squadService: SquadService,
+    private businessUnitService: BusinessUnitService,
+    private applicationService: ApplicationService,
     private router: Router,
     private route: ActivatedRoute
   ) {
     this.form = this.fb.group({
       name: ['', Validators.required],
       description: [''],
+      business_unit_id: [''],
       product_owners: this.fb.array([]),
       team_leads: this.fb.array([]),
       principal_engineers: this.fb.array([]),
       jira_boards: this.fb.array([]),
-      squads: this.fb.array([])
+      squads: this.fb.array([]),
+      application_ids: this.fb.array([])
     });
   }
 
@@ -66,7 +88,9 @@ export class ProductFormComponent implements OnInit {
     this.isEdit = !!this.productId;
 
     this.loadSquads();
-    
+    this.loadBusinessUnits();
+    this.loadApplications();
+
     if (this.isEdit && this.productId) {
       this.loadProduct(this.productId);
     }
@@ -81,6 +105,32 @@ export class ProductFormComponent implements OnInit {
       },
       error: () => {
         this.loadingSquads.set(false);
+      }
+    });
+  }
+
+  loadBusinessUnits(): void {
+    this.loadingBusinessUnits.set(true);
+    this.businessUnitService.getAll().subscribe({
+      next: (units) => {
+        this.businessUnits.set(units);
+        this.loadingBusinessUnits.set(false);
+      },
+      error: () => {
+        this.loadingBusinessUnits.set(false);
+      }
+    });
+  }
+
+  loadApplications(): void {
+    this.loadingApplications.set(true);
+    this.applicationService.getAll().subscribe({
+      next: (apps) => {
+        this.applications.set(apps);
+        this.loadingApplications.set(false);
+      },
+      error: () => {
+        this.loadingApplications.set(false);
       }
     });
   }
@@ -105,6 +155,10 @@ export class ProductFormComponent implements OnInit {
     return this.form.get('squads') as FormArray;
   }
 
+  get applicationsFormArray(): FormArray {
+    return this.form.get('application_ids') as FormArray;
+  }
+
   addSquadFromDropdown(squadId: string): void {
     if (!squadId || this.isSquadSelected(squadId)) return;
     this.squadsFormArray.push(this.fb.control(squadId));
@@ -115,8 +169,6 @@ export class ProductFormComponent implements OnInit {
   }
 
   isSquadSelected(squadId: string): boolean {
-    // Check if squad is already selected in THIS product's form (prevents duplicates within same product)
-    // Note: This does NOT prevent the same squad from being added to other products
     if (!squadId) return false;
     const squadIdStr = String(squadId);
     return this.squadsFormArray.controls.some(control => {
@@ -125,14 +177,32 @@ export class ProductFormComponent implements OnInit {
     });
   }
 
-  getAvailableSquads() {
-    // Use computed signal for reactive updates
-    return this.availableSquads();
-  }
-
   getSquadName(squadId: string): string {
     const squad = this.squads().find(s => (s.id || s._id) === squadId);
     return squad?.name || squadId;
+  }
+
+  addApplicationFromDropdown(appId: string): void {
+    if (!appId || this.isApplicationSelected(appId)) return;
+    this.applicationsFormArray.push(this.fb.control(appId));
+  }
+
+  removeApplication(index: number): void {
+    this.applicationsFormArray.removeAt(index);
+  }
+
+  isApplicationSelected(appId: string): boolean {
+    if (!appId) return false;
+    const appIdStr = String(appId);
+    return this.applicationsFormArray.controls.some(control => {
+      const controlValue = String(control.value || '');
+      return controlValue === appIdStr;
+    });
+  }
+
+  getApplicationName(appId: string): string {
+    const app = this.applications().find(a => (a.id || a._id) === appId);
+    return app?.name || appId;
   }
 
   addProductOwner(): void {
@@ -176,7 +246,8 @@ export class ProductFormComponent implements OnInit {
       next: (product) => {
         this.form.patchValue({
           name: product.name,
-          description: product.description || ''
+          description: product.description || '',
+          business_unit_id: product.business_unit_id || ''
         });
 
         // Populate arrays
@@ -204,6 +275,11 @@ export class ProductFormComponent implements OnInit {
           this.squadsFormArray.push(this.fb.control(squadId));
         });
 
+        // Populate applications
+        product.application_ids?.forEach(appId => {
+          this.applicationsFormArray.push(this.fb.control(appId));
+        });
+
         this.loading.set(false);
       },
       error: (err) => {
@@ -226,7 +302,8 @@ export class ProductFormComponent implements OnInit {
       team_leads: formValue.team_leads.filter((v: string) => v.trim()),
       principal_engineers: formValue.principal_engineers.filter((v: string) => v.trim()),
       jira_boards: formValue.jira_boards.filter((b: JiraBoardInfo) => b.board_id && b.board_name),
-      squads: formValue.squads || []
+      squads: formValue.squads || [],
+      application_ids: formValue.application_ids || []
     };
 
     const request$ = this.isEdit && this.productId

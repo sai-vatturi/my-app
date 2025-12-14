@@ -1,7 +1,7 @@
 import { Component, ChangeDetectionStrategy, signal, effect, Injector, PLATFORM_ID, inject } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { LucideAngularModule, Package, Users, Rocket, ChevronLeft, ChevronRight, LayoutDashboard, Calendar, GitBranch } from 'lucide-angular';
+import { LucideAngularModule, Package, Users, Rocket, ChevronLeft, ChevronRight, LayoutDashboard, Calendar, GitBranch, Briefcase, AppWindow } from 'lucide-angular';
 
 interface NavItem {
   path: string;
@@ -25,7 +25,7 @@ export class SidebarComponent {
   private readonly injector = inject(Injector);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly STORAGE_KEY = 'sidebar-collapsed';
-  
+
   readonly Package = Package;
   readonly Users = Users;
   readonly Rocket = Rocket;
@@ -34,6 +34,8 @@ export class SidebarComponent {
   readonly LayoutDashboard = LayoutDashboard;
   readonly Calendar = Calendar;
   readonly GitBranch = GitBranch;
+  readonly Briefcase = Briefcase;
+  readonly AppWindow = AppWindow;
 
   // Reactive state with signal
   isCollapsed = signal<boolean>(this.loadCollapsedState());
@@ -41,6 +43,8 @@ export class SidebarComponent {
   navItems: NavItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/calendar', label: 'Calendar', icon: Calendar },
+    { path: '/business-units', label: 'Business Units', icon: Briefcase },
+    { path: '/applications', label: 'Applications', icon: AppWindow },
     { path: '/products', label: 'Products', icon: Package },
     { path: '/squads', label: 'Squads', icon: Users },
     { path: '/releases', label: 'Releases', icon: Rocket },
@@ -53,7 +57,7 @@ export class SidebarComponent {
       this.checkMobileView();
       window.addEventListener('resize', () => this.checkMobileView());
     }
-    
+
     // Persist state changes to localStorage
     effect(() => {
       if (isPlatformBrowser(this.platformId)) {
