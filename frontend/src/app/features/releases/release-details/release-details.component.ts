@@ -1,6 +1,8 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+
+import { Component, OnInit, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Action } from 'rxjs/internal/scheduler/Action';
+import { Router, ActivatedRoute, RouterModule, RouterLink } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { ReleaseService } from '../../../core/services/release.service';
 import { ProductService } from '../../../core/services/product.service';
@@ -13,24 +15,26 @@ import { AlertComponent } from '../../../shared/components/alert/alert.component
 import { WorkflowProgressComponent } from '../../../shared/components/workflow-progress/workflow-progress.component';
 import { WorkflowD3ChartComponent } from '../../../shared/components/workflow-d3-chart/workflow-d3-chart.component';
 import { TimelineEditorV2Component } from '../../../shared/components/timeline-editor-v2/timeline-editor-v2.component';
-import { ReleaseAttachmentsComponent } from '../../../features/releases/release-attachments/release-attachments.component';
+import { ReleaseAttachmentsComponent } from '../release-attachments/release-attachments.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
+import { StageActionCardComponent } from '../../../shared/components/stage-action-card/stage-action-card.component';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-release-details',
   standalone: true,
   imports: [
     CommonModule,
-    RouterLink,
-    FormsModule,
-    ReactiveFormsModule,
+    RouterModule,
     LoadingSpinnerComponent,
     AlertComponent,
-    WorkflowD3ChartComponent,
-    TimelineEditorV2Component,
+    ButtonComponent,
     WorkflowProgressComponent,
+    WorkflowD3ChartComponent,
+    StageActionCardComponent,
+    TimelineEditorV2Component,
     ReleaseAttachmentsComponent,
-    ButtonComponent
+    FormsModule
   ],
   templateUrl: './release-details.component.html',
 })
@@ -42,6 +46,19 @@ export class ReleaseDetailsComponent implements OnInit {
   productMap = new Map<string, string>();
   expandedScopes = new Set<number>(); // Track which product scopes are expanded
   workflow = signal<WorkflowTemplate | null>(null);
+
+  @ViewChild('workflowContainer') workflowContainer!: ElementRef;
+
+  // Interactive Graph State
+  selectedStageInfo = signal<{
+    product: any; // ReleaseProduct
+    stage: any;   // WorkflowStage
+    state: any;   // WorkflowStageState
+    status: 'completed' | 'current' | 'upcoming';
+  } | null>(null);
+
+  cardPosition = signal<{ x: number, y: number } | null>(null);
+  processingAction = signal(false);
 
   // State for modals
   editingProductIndex = signal<number | null>(null);
@@ -206,10 +223,6 @@ export class ReleaseDetailsComponent implements OnInit {
     });
   }
 
-  trackByIndex(index: number, item: any): number {
-    return index;
-  }
-
   updatePoc(value: string, productIndex: number, pocIndex: number): void {
     const currentRelease = this.release();
     if (currentRelease && currentRelease.products[productIndex]) {
@@ -313,5 +326,145 @@ export class ReleaseDetailsComponent implements OnInit {
 
   onReleaseUpdated(updatedRelease: Release): void {
     this.release.set(updatedRelease);
+    // Refresh selected stage info if open
+    if (this.selectedStageInfo()) {
+      this.refreshSelectedStageInfo(updatedRelease);
+    }
+  }
+
+  // --- Graph Interaction ---
+
+  onStageClicked(event: { productId: string, stageOrder: number, event: MouseEvent, element: any }): void {
+    const release = this.release();
+    const workflow = this.workflow();
+    if (!release || !workflow) return;
+
+    const product = release.products.find(p => p.product_id === event.productId);
+    const stage = workflow.stages.find(s => s.order === event.stageOrder);
+
+    if (!product || !stage) return;
+
+    // Determine status
+    const workflowStates = product.workflow_states || {};
+    const state = workflowStates[stage.order.toString()] || null;
+    let status: 'completed' | 'current' | 'upcoming' = 'upcoming';
+
+    if (state?.status) {
+      status = 'completed';
+    } else {
+      // Recalculate 'current' logic similar to chart comp
+      const sortedStages = [...workflow.stages].sort((a, b) => a.order - b.order);
+      const firstIncomplete = sortedStages.find(s => {
+        const sState = workflowStates[s.order.toString()];
+        return !sState || !sState.status;
+      });
+      if (firstIncomplete?.order === stage.order) status = 'current';
+    }
+
+    this.selectedStageInfo.set({ product, stage, state, status });
+
+    // Calculate Position - relative to the container for simplicity, or fixed if simpler
+    // Using simple absolute positioning based on click/element rect
+    // Adjusting for card size (w-72 = 18rem = ~288px)
+
+    // Position below the node
+    let left = event.event.clientX;
+    let top = event.event.clientY;
+
+    // We need relative coordinates for 'absolute' positioning within the relative container
+    // This ensures the popup scrolls WITH the page instead of staying fixed on screen
+    const containerRect = this.workflowContainer.nativeElement.getBoundingClientRect();
+    const rect = event.element; // This is the node's bounding rect
+
+    this.cardPosition.set({
+      x: rect.right - containerRect.left + 10,
+      y: rect.top - containerRect.top
+    });
+  }
+
+  closeStageCard(): void {
+    this.selectedStageInfo.set(null);
+    this.cardPosition.set(null);
+  }
+
+  refreshSelectedStageInfo(release: Release): void {
+    const current = this.selectedStageInfo();
+    if (!current) return;
+
+    const product = release.products.find(p => p.product_id === current.product.product_id);
+    if (!product) return; // Should not happen
+
+    const workflowStates = product.workflow_states || {};
+    const state = workflowStates[current.stage.order.toString()] || null;
+
+    // Update state in the signal
+    this.selectedStageInfo.update(prev => prev ? ({ ...prev, product, state }) : null);
+
+    // We might need to re-evaluate 'status' if it changed (e.g. current -> completed)
+    // For now, let's trust the re-render or user closing it.
+    // Actually if they advanced, it became completed.
+    if (current.status === 'current' && state?.status) {
+      this.selectedStageInfo.update(prev => prev ? ({ ...prev, status: 'completed' }) : null);
+    }
+  }
+
+  // Actions from Card
+  advanceStageFromCard(): void {
+    const info = this.selectedStageInfo();
+    if (!info) return;
+
+    this.processingAction.set(true);
+    this.releaseService.advanceProductStage(this.release()!.id || this.release()!._id!, info.product.product_id)
+      .subscribe({
+        next: (updated) => {
+          this.processingAction.set(false);
+          this.onReleaseUpdated(updated);
+          // Optionally close card or keep open to show success?
+          // Closing feels natural after "Advance" which moves focus to next stage usually.
+          this.closeStageCard();
+
+          // If there's a next stage, we could potentially auto-select it?
+          // Let's keep it simple for now.
+        },
+        error: (err) => {
+          this.processingAction.set(false);
+          this.error.set(err.message);
+        }
+      });
+  }
+
+  uploadAttachmentFromCard(file: File): void {
+    const info = this.selectedStageInfo();
+    if (!info) return;
+
+    this.processingAction.set(true);
+    this.releaseService.uploadStageAttachment(
+      this.release()!.id || this.release()!._id!,
+      info.product.product_id,
+      info.stage.order,
+      file
+    ).subscribe({
+      next: (updated) => {
+        this.processingAction.set(false);
+        this.onReleaseUpdated(updated);
+        // Don't close, user might want to see the result (file name attached)
+      },
+      error: (err) => {
+        this.processingAction.set(false);
+        this.error.set(err.message);
+      }
+    });
+  }
+
+  downloadAttachmentFromCard(): void {
+    const info = this.selectedStageInfo();
+    if (!info || !info.state?.attachment_id) return;
+
+    const baseUrl = environment.apiUrl;
+    window.open(`${baseUrl}/files/${info.state.attachment_id}/download`, '_blank');
+  }
+
+  trackByIndex(index: number, item: any): number {
+    return index;
   }
 }

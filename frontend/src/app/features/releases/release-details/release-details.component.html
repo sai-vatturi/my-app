@@ -43,14 +43,28 @@
     </div>
 
     <!-- D3 Workflow Visualization -->
-    <div *ngIf="release() && workflow()"
-      class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100 overflow-x-auto">
+    <div *ngIf="release() && workflow()" #workflowContainer
+      class="bg-white rounded-xl shadow-md p-4 md:p-8 border border-gray-100 overflow-visible relative min-h-[500px]">
+      <!-- overflow-visible for the popup to show if needed, though fixed pos handles it -->
       <h2 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Release Workflow</h2>
       <div class="min-w-full">
         <app-workflow-d3-chart [release]="release()!" [workflow]="workflow()!" [products]="products()"
-          [productMap]="productMap" (productClicked)="openWorkflowDialog($event)">
+          [productMap]="productMap" (stageClicked)="onStageClicked($event)"
+          (productClicked)="openWorkflowDialog($event)">
         </app-workflow-d3-chart>
       </div>
+
+      <!-- Stage Action Popover -->
+      <app-stage-action-card *ngIf="selectedStageInfo() && cardPosition()" [style.position]="'absolute'"
+        [style.left.px]="cardPosition()?.x" [style.top.px]="cardPosition()?.y" [style.zIndex]="'100'"
+        [stage]="selectedStageInfo()!.stage" [state]="selectedStageInfo()!.state" [status]="selectedStageInfo()!.status"
+        [isProcessing]="processingAction()" (onAdvance)="advanceStageFromCard()"
+        (onUpload)="uploadAttachmentFromCard($event)" (onDownload)="downloadAttachmentFromCard()"
+        (close)="closeStageCard()">
+      </app-stage-action-card>
+
+      <!-- Backdrop for closing -->
+      <div *ngIf="selectedStageInfo()" class="fixed inset-0 z-40 bg-transparent" (click)="closeStageCard()"></div>
     </div>
 
     <!-- Release Details and Scope -->

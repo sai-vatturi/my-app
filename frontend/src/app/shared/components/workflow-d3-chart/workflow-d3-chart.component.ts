@@ -32,6 +32,12 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
   @Output() editStageDate = new EventEmitter<{ productId: string; stageOrder: number }>();
   @Output() addAttachment = new EventEmitter<{ productId: string; stageOrder: number }>();
   @Output() productClicked = new EventEmitter<string>();
+  @Output() stageClicked = new EventEmitter<{
+    productId: string,
+    stageOrder: number,
+    event: MouseEvent,
+    element: HTMLElement
+  }>();
 
   private svg: any;
   private zoom: any;
@@ -360,6 +366,9 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
       sortedStages.forEach((stage, stageIdx) => {
         const { width: actualStageWidth, status } = stageData[stageIdx];
 
+        const state = workflowStates[stage.order.toString()] || null;
+
+        // Stage box with dynamic width
         const stageGroup = this.zoomGroup.append('g')
           .attr('class', 'stage-node')
           .attr('transform', `translate(${stageX}, ${productY})`);
@@ -383,14 +392,109 @@ export class WorkflowD3ChartComponent implements OnInit, OnChanges, OnDestroy {
           .style('font-weight', status === 'current' ? 'bold' : 'normal')
           .style('fill', '#1f2937');
 
-        // Status indicator
+        // Status indicator circle (Removed in favor of icons/background, but keeping the circle for the icon background if needed, or just icons)
+        // Original code had a circle here. We replaced it with icon logic but broke the chain.
+        // Let's add a small circle background for the icon if it's a status icon
+
         stageGroup.append('circle')
           .attr('cx', actualStageWidth / 2 - 12)
           .attr('cy', -nodeHeight / 2 + 12)
-          .attr('r', 6)
+          .attr('r', 8) // Slightly larger for icon bg
           .attr('fill', this.getStatusColor(status))
           .attr('stroke', '#fff')
-          .attr('stroke-width', 2);
+          .attr('stroke-width', 1);
+
+        // Attachment Icon Logic
+        const requiresAttachment = stage.requires_attachment;
+        const isMandatory = stage.attachment_mandatory;
+        const hasAttachment = !!state?.attachment_id;
+
+        if (requiresAttachment) {
+          // Determine Styles - Seamless look
+          let fill = '#fff';
+          let stroke = '#d1d5db'; // gray-300
+          let strokeWidth = 1.5; // Match status circle
+          let iconColor = '#9ca3af'; // gray-400
+
+          if (hasAttachment) {
+            fill = '#10b981'; // Green (Uploaded)
+            stroke = '#10b981';
+            iconColor = '#ffffff';
+          } else if (isMandatory) {
+            fill = '#fee2e2'; // Light Red
+            stroke = '#ef4444'; // Red
+            iconColor = '#ef4444';
+          } else {
+            fill = '#fef9c3'; // Light Yellow
+            stroke = '#eab308'; // Yellow
+            iconColor = '#ca8a04';
+          }
+
+          // Position: Left of the status circle
+          // Status circle is at: actualStageWidth / 2 - 12
+          // Radius = 8. Gap = 4. Offset = 12 + 16 + 4 = 32.
+          const attachGroup = stageGroup.append('g')
+            .attr('transform', `translate(${actualStageWidth / 2 - 32}, ${-nodeHeight / 2 + 12})`);
+
+          // Circle (Same size as status circle)
+          attachGroup.append('circle')
+            .attr('r', 8)
+            .attr('fill', fill)
+            .attr('stroke', stroke)
+            .attr('stroke-width', strokeWidth);
+
+          // Clip Icon (SVG Path for perfect alignment)
+          // Path visual center analysis: X ≈ 8, Y ≈ 12
+          // Scale: 0.55 (Increased size)
+          // Translate X: -8 * 0.55 = -4.4
+          // Translate Y: -12 * 0.55 = -6.6
+          attachGroup.append('path')
+            .attr('d', 'M12.5 7.5v8a4.5 4.5 0 0 1-9 0v-8a2.5 2.5 0 0 1 5 0v8a.5.5 0 0 1-1 0v-8a1.5 1.5 0 0 0-3 0v8a3.5 3.5 0 0 0 7 0v-8a2.5 2.5 0 0 0-5 0v8a1 1 0 0 0 2 0v-8a.5.5 0 0 1 1 0')
+            .attr('transform', 'translate(-4.4, -6.6) scale(0.55)')
+            .attr('stroke', iconColor)
+            .attr('stroke-width', 1.4) // Reduced stroke for cleaner look
+            .attr('fill', 'none')
+            .attr('stroke-linecap', 'round');
+        }
+
+        // Status Icon Logic (Existing)
+        let statusIconType = '';
+        if (status === 'completed') statusIconType = 'check';
+        else if (status === 'current') statusIconType = 'loading';
+
+        if (statusIconType) {
+          const iconGroup = stageGroup.append('g')
+            .attr('transform', `translate(${actualStageWidth / 2 - 12}, ${-nodeHeight / 2 + 12})`);
+
+          if (statusIconType === 'check') {
+            iconGroup.append('path')
+              .attr('d', 'M-3 0 L-1 2 L3 -2')
+              .attr('stroke', 'white')
+              .attr('stroke-width', 1.5)
+              .attr('fill', 'none');
+          }
+          // Loading spinner could be added here if we had an animation, 
+          // but for now the 'current' status has a pulsing border/blue color.
+        }
+
+        // Add Click Interaction
+        stageGroup
+          .style('cursor', 'pointer')
+          .on('click', (event: MouseEvent) => {
+            event.stopPropagation();
+            this.stageClicked.emit({
+              productId: product.product_id,
+              stageOrder: stage.order,
+              event: event,
+              element: (event.target as Element).getBoundingClientRect() as any
+            });
+          })
+          .on('mouseover', function (this: SVGElement, event: MouseEvent) {
+            d3.select(this).select('rect').attr('filter', 'brightness(0.95)');
+          })
+          .on('mouseout', function (this: SVGElement, event: MouseEvent) {
+            d3.select(this).select('rect').attr('filter', null);
+          });
 
         // Connection line to next stage (straight line)
         if (stageIdx < sortedStages.length - 1) {
