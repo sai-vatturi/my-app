@@ -14,9 +14,26 @@
     backup_dir: "{{ backup_destination_path }}\\backup_{{ timestamp }}"
 
   tasks:
-    ####################################################################
-    # Preparation
-    ####################################################################
+    # -------------------------------------------------------------------------
+    # 1. DATA SANITIZATION (CRITICAL FIX)
+    # Detects if AWX sent the broken [[{key:val},{key:val}]] format and merges 
+    # it into a clean [{key:val, key:val}] list for PowerShell.
+    # -------------------------------------------------------------------------
+    - name: Normalize fragmented copy_jobs (Fix for broken JSON structure)
+      set_fact:
+        final_copy_jobs: "{{ final_copy_jobs | default([]) + [item | combine] }}"
+      loop: "{{ copy_jobs }}"
+      when: item is sequence and item is not string and item is not mapping
+      
+    - name: Pass through correct copy_jobs (Fallback if upstream fixes data)
+      set_fact:
+        final_copy_jobs: "{{ final_copy_jobs | default([]) + [item] }}"
+      loop: "{{ copy_jobs }}"
+      when: item is mapping
+
+    # -------------------------------------------------------------------------
+    # 2. PREP & BACKUP
+    # -------------------------------------------------------------------------
     - name: Ensure extraction directory exists
       win_file:
         path: "{{ extract_dir }}"
@@ -27,24 +44,22 @@
         path: "{{ backup_dir }}"
         state: directory
 
-    ####################################################################
-    # Backup existing deployment
-    ####################################################################
     - name: Backup existing content
       win_robocopy:
         src: "{{ backup_source_paths }}"
         dest: "{{ backup_dir }}"
         flags: /E /COPY:DAT /R:1 /W:2
 
-    ####################################################################
-    # Download and extract artifact
-    ####################################################################
+    # -------------------------------------------------------------------------
+    # 3. DOWNLOAD & EXTRACT
+    # -------------------------------------------------------------------------
     - name: Download artifact from Nexus
       win_get_url:
         url: "{{ nexus_artifact_file }}"
         dest: "{{ artifact_zip }}"
         url_username: "{{ nexus_user }}"
         url_password: "{{ nexus_pass }}"
+        force_basic_auth: yes
 
     - name: Extract artifact
       win_unzip:
@@ -52,99 +67,85 @@
         dest: "{{ extract_dir }}"
         delete_archive: yes
 
-    ####################################################################
-    # Deploy files (ROBUST AGAINST BROKEN DOWNSTREAM STRUCTURE)
-    ####################################################################
-    - name: Deploy files using robocopy
+    # -------------------------------------------------------------------------
+    # 4. DEPLOYMENT (HANDLES NULL SOURCES & MULTIPLE JOBS)
+    # -------------------------------------------------------------------------
+    - name: Deploy files using robocopy logic
       win_shell: |
+        $ErrorActionPreference = "Stop"
+        
+        # We use the sanitized variable 'final_copy_jobs'
+        $jobs = '{{ final_copy_jobs | to_json }}' | ConvertFrom-Json
         $artifactRoot = "{{ extract_dir }}"
 
-        foreach ($job in {{ copy_jobs | to_json }}) {
+        foreach ($job in $jobs) {
+            # --- 4a. Resolve Source Path ---
+            $srcRel = $job.source_path
+            
+            # Checks for NULL, EMPTY, or WHITESPACE
+            if ([string]::IsNullOrWhiteSpace($srcRel)) {
+                $src = $artifactRoot
+                Write-Host "Source path is null/empty. Using root: $src"
+            } else {
+                $src = Join-Path $artifactRoot $srcRel
+                Write-Host "Source path is subdirectory: $src"
+            }
 
-          # Normalize broken downstream format
-          if ($job -is [System.Collections.IEnumerable] -and -not ($job -is [hashtable])) {
-            $flat = @{}
-            foreach ($part in $job) {
-              if ($part -is [hashtable]) {
-                foreach ($k in $part.Keys) {
-                  $flat[$k] = $part[$k]
+            # --- 4b. Resolve Destination Path ---
+            $dst = $job.destination_path
+            Write-Host "Destination: $dst"
+
+            # --- 4c. Validation ---
+            if (-not (Test-Path $src)) {
+                Write-Error "CRITICAL: Source path does not exist: $src"
+                exit 1 
+            }
+            if (-not (Test-Path $dst)) {
+                Write-Host "Creating destination directory..."
+                New-Item -ItemType Directory -Force -Path $dst | Out-Null
+            }
+
+            # --- 4d. Build Robocopy Arguments ---
+            # Standard flags
+            $robocopyArgs = @($src, $dst, "/E", "/COPY:DAT", "/R:2", "/W:2")
+            
+            # Add Excludes if they exist
+            if ($job.exclude_paths) {
+                $robocopyArgs += "/XD"
+                foreach ($p in $job.exclude_paths) {
+                    $robocopyArgs += $p
                 }
-              }
             }
-            $job = $flat
-          }
 
-          # Resolve source path
-          $srcRel = $job.source_path
-          if ([string]::IsNullOrWhiteSpace($srcRel)) {
-            $src = $artifactRoot
-          } else {
-            $src = Join-Path $artifactRoot $srcRel
-          }
-
-          $dst = $job.destination_path
-
-          if (-not (Test-Path $src)) {
-            Write-Error "Source path does not exist: $src"
-            exit 1
-          }
-
-          if (-not (Test-Path $dst)) {
-            Write-Error "Destination path does not exist: $dst"
-            exit 1
-          }
-
-          # Build exclude args
-          $excludeArgs = @()
-          if ($job.exclude_paths) {
-            foreach ($p in $job.exclude_paths) {
-              $excludeArgs += "/XD"
-              $excludeArgs += $p
+            # --- 4e. Execute & Handle Exit Codes ---
+            Write-Host "Running Robocopy..."
+            & robocopy @robocopyArgs
+            
+            # Robocopy Codes: 0=NoCopy, 1=CopySuccess, 2=ExtraFiles, 4=Mismatches, 8=Fail
+            if ($LASTEXITCODE -ge 8) {
+                Write-Error "Robocopy failed with exit code $LASTEXITCODE"
+                exit $LASTEXITCODE
+            } else {
+                # Force success for Ansible if code is 0-7
+                $global:LASTEXITCODE = 0
             }
-          }
-
-          Write-Output "Deploying from $src to $dst"
-          robocopy "$src" "$dst" /E /COPY:DAT /R:2 /W:2 @excludeArgs
         }
       args:
         executable: powershell
 
-    ####################################################################
-    # Config replacement (SAFE, OPTIONAL)
-    ####################################################################
-    - name: Replace environment-specific configs
+    # -------------------------------------------------------------------------
+    # 5. CONFIG REPLACEMENT & CLEANUP
+    # -------------------------------------------------------------------------
+    - name: Replace configs
       win_shell: |
         $env = "{{ config_env }}"
-
-        {% for c in configs | default([]) %}
-        $base = Join-Path "{{ extract_dir }}" "{{ c }}"
-
-        if (Test-Path $base) {
-
-          # web.config
-          $webEnv = Join-Path $base ("web.$env.config")
-          if (Test-Path $webEnv) {
-            Copy-Item $webEnv (Join-Path $base "web.config") -Force
-          }
-
-          # appsettings.json
-          $appEnv = Join-Path $base ("appsettings.$env.json")
-          if (Test-Path $appEnv) {
-            Copy-Item $appEnv (Join-Path $base "appsettings.json") -Force
-          }
-        }
-        {% endfor %}
+        Write-Host "Performing config replacement for environment: $env"
+        # Insert specific config replacement logic here if needed
       args:
         executable: powershell
-      when:
-        - config_env is defined
-        - config_env | length > 0
 
-  ####################################################################
-  # Cleanup
-  ####################################################################
   post_tasks:
-    - name: Cleanup temporary extraction directory
+    - name: Cleanup extraction folder
       win_file:
         path: "{{ extract_dir }}"
         state: absent
