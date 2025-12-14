@@ -28,3 +28,41 @@ configs:
   - Folder1\project1
   - Folder2\project2\bin
   - Folder3\project3
+
+- name: Deploy files using robocopy per copy_job
+  win_shell: |
+    $artifactRoot = "{{ extract_dir }}"
+
+    $relativeSrc = "{{ item.source_path | default('') }}"
+    if ([string]::IsNullOrWhiteSpace($relativeSrc)) {
+      $src = $artifactRoot
+    } else {
+      $src = Join-Path $artifactRoot $relativeSrc
+    }
+
+    $dst = "{{ item.destination_path }}"
+
+    if (-not (Test-Path $src)) {
+      Write-Error "Source path does not exist: $src"
+      exit 1
+    }
+
+    if (-not (Test-Path $dst)) {
+      Write-Error "Destination path does not exist: $dst"
+      exit 1
+    }
+
+    $excludeArgs = @()
+    {% for p in item.exclude_paths | default([]) %}
+    $excludeArgs += "/XD"
+    $excludeArgs += "{{ p }}"
+    {% endfor %}
+
+    Write-Output "Deploying from $src to $dst"
+    robocopy "$src" "$dst" /E /COPY:DAT /R:2 /W:2 @excludeArgs
+    exit 0
+  args:
+    executable: powershell
+  loop: "{{ copy_jobs }}"
+  loop_control:
+    label: "{{ item.destination_path }}"
