@@ -119,6 +119,23 @@ export class ReleaseService {
     );
   }
 
+  deleteStageAttachment(
+    releaseId: string,
+    productId: string,
+    stageOrder: number,
+    attachmentId: string
+  ): Observable<Release> {
+    return this.api.delete<Release>(
+      `/releases/${releaseId}/products/${productId}/stages/${stageOrder}/attachments/${attachmentId}`
+    ).pipe(
+      tap(updatedRelease => {
+        this.releasesSignal.update(releases =>
+          releases.map(r => (r.id === releaseId || r._id === releaseId) ? updatedRelease : r)
+        );
+      })
+    );
+  }
+
   updateStageTimeline(
     releaseId: string,
     stageOrder: number,

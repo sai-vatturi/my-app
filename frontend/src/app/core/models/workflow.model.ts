@@ -13,6 +13,7 @@ export interface WorkflowStageState {
   attachment_id?: string;
   attachment_filename?: string;
   attachment_uploaded_at?: string;
+  attachments?: { id: string; filename: string; uploaded_at: string; uploaded_by?: string }[];
   deadline?: string;
 }
 

@@ -8,7 +8,7 @@ from fastapi import HTTPException, UploadFile
 from app.schemas.release import ReleaseCreate, ReleaseUpdate
 from app.models.release import Release
 from app.services.workflow_service import WorkflowService
-from app.services.workflow_service import WorkflowService
+
 from app.services.file_service import FileService
 
 
@@ -243,17 +243,30 @@ class ReleaseService:
             ],
         )
 
-        if stage_state.get("attachment_id"):
-            await self.file_service.delete_file(stage_state["attachment_id"])
-
         now = datetime.now(timezone.utc)
         file_id = str(uploaded_file["_id"])
         filename = uploaded_file.get("original_filename") or uploaded_file.get("filename")
 
+        # Prepare attachment data
+        attachment_data = {
+            "id": file_id,
+            "filename": filename,
+            "uploaded_at": now,
+            "uploaded_by": uploaded_by
+        }
+
+        # Push to attachments array and set singular implementation for backward compat if needed (or just rely on array)
+        # We will maintain singular fields for now to avoid breaking other parts, but logic will primarily use array in new frontend code
+        # Actually, let's just push to 'attachments' list.
+        
         await self.collection.update_one(
             {"_id": release["_id"], "products.product_id": product_id},
             {
+                "$push": {
+                    f"products.$.workflow_states.{stage_key}.attachments": attachment_data
+                },
                 "$set": {
+                    # Keep these for backward compatibility for a bit, or just update them to the LATEST file
                     f"products.$.workflow_states.{stage_key}.attachment_id": file_id,
                     f"products.$.workflow_states.{stage_key}.attachment_filename": filename,
                     f"products.$.workflow_states.{stage_key}.attachment_uploaded_at": now,
@@ -262,6 +275,78 @@ class ReleaseService:
             },
         )
 
+        return await self.get_release_by_id(release_id)
+
+    async def delete_product_stage_attachment(
+        self,
+        release_id: str,
+        product_id: str,
+        stage_order: int,
+        attachment_id: str,
+    ) -> dict:
+        """Delete an attachment from a workflow stage."""
+        release = await self._get_release_or_404(release_id)
+        
+        # Verify stage and product exist logic similar to upload...
+        # For efficiency, we can just try to update. But validation is good.
+        
+        stage_key = str(stage_order)
+        
+        # 1. Delete file from storage
+        try:
+            await self.file_service.delete_file(attachment_id)
+        except Exception:
+            # If file doesn't exist in storage, we still want to remove the reference
+            pass
+        
+        now = datetime.now(timezone.utc)
+
+        # 2. Pull from array
+        await self.collection.update_one(
+            {"_id": release["_id"], "products.product_id": product_id},
+            {
+                "$pull": {
+                    f"products.$.workflow_states.{stage_key}.attachments": {"id": attachment_id}
+                },
+                "$set": {"updated_at": now}
+            }
+        )
+        
+        # 3. Clean up legacy fields if needed (if matches deleted ID)
+        # We need to check if we just deleted the file referenced by legacy fields
+        # This is a bit tricky with atomic updates. 
+        # Simplest approach: fetch release again, check array, update legacy field to last item or null.
+        
+        updated_release = await self.get_release_by_id(release_id)
+        # We can implement a smarter check here if critical, but for now relying on array is preferred.
+        # But let's actally fix the legacy fields to reflect current reality (last item).
+        
+        product = next((p for p in updated_release["products"] if p["product_id"] == product_id), None)
+        if product:
+            state = product["workflow_states"].get(stage_key)
+            attachments = state.get("attachments", [])
+            
+            legacy_update = {}
+            if attachments:
+                last = attachments[-1]
+                legacy_update = {
+                    f"products.$.workflow_states.{stage_key}.attachment_id": last["id"],
+                    f"products.$.workflow_states.{stage_key}.attachment_filename": last["filename"],
+                    f"products.$.workflow_states.{stage_key}.attachment_uploaded_at": last["uploaded_at"]
+                }
+            else:
+                 legacy_update = {
+                    f"products.$.workflow_states.{stage_key}.attachment_id": None,
+                    f"products.$.workflow_states.{stage_key}.attachment_filename": None,
+                    f"products.$.workflow_states.{stage_key}.attachment_uploaded_at": None
+                }
+            
+            if legacy_update:
+                 await self.collection.update_one(
+                    {"_id": release["_id"], "products.product_id": product_id},
+                    {"$set": legacy_update}
+                )
+                
         return await self.get_release_by_id(release_id)
 
     async def upload_custom_attachment(
@@ -483,6 +568,7 @@ class ReleaseService:
             "attachment_id": None,
             "attachment_filename": None,
             "attachment_uploaded_at": None,
+            "attachments": [],
             "deadline": deadline_str,
         }
 

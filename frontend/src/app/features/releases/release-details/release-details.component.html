@@ -49,8 +49,7 @@
       <h2 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Release Workflow</h2>
       <div class="min-w-full">
         <app-workflow-d3-chart [release]="release()!" [workflow]="workflow()!" [products]="products()"
-          [productMap]="productMap" (stageClicked)="onStageClicked($event)"
-          (productClicked)="openWorkflowDialog($event)">
+          [productMap]="productMap" (stageClicked)="onStageClicked($event)">
         </app-workflow-d3-chart>
       </div>
 
@@ -59,8 +58,10 @@
         [style.left.px]="cardPosition()?.x" [style.top.px]="cardPosition()?.y" [style.zIndex]="'100'"
         [stage]="selectedStageInfo()!.stage" [state]="selectedStageInfo()!.state" [status]="selectedStageInfo()!.status"
         [isProcessing]="processingAction()" (onAdvance)="advanceStageFromCard()"
-        (onUpload)="uploadAttachmentFromCard($event)" (onDownload)="downloadAttachmentFromCard()"
+        (onUpload)="uploadAttachmentFromCard($event)" (onDownload)="downloadAttachmentFromCard($event)"
+        (onDownloadAll)="downloadAllAttachmentsFromCard()" (onDelete)="deleteAttachmentFromCard($event)"
         (close)="closeStageCard()">
+        (onDelete)="deleteAttachmentFromCard($event)" (close)="closeStageCard()">
       </app-stage-action-card>
 
       <!-- Backdrop for closing -->
@@ -277,20 +278,113 @@
     </div>
   </div>
 
-  <!-- Workflow Stages Modal -->
-  <div *ngIf="selectedProduct() && release() && workflow()"
+
+
+  <!-- Add Product Modal -->
+  <div *ngIf="addingProduct()" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    (click)="closeAddProductDialog()">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+      (click)="$event.stopPropagation()">
+
+      <!-- Modal Header -->
+      <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <h3 class="text-xl font-bold text-gray-900">Add Product to Release</h3>
+        <button (click)="closeAddProductDialog()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Content -->
+      <div class="p-6 space-y-4">
+        <!-- Product Selection -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Select Product</label>
+          <select [(ngModel)]="newProduct.product_id"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+            <option value="" disabled>Select a product...</option>
+            <option *ngFor="let product of availableProducts()" [value]="product.id || product._id">
+              {{ product.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Scope Description -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Scope Description</label>
+          <textarea [(ngModel)]="newProduct.scope_description" rows="4"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            placeholder="Enter scope description..."></textarea>
+        </div>
+
+        <!-- POCs -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">POCs</label>
+          <div class="space-y-2">
+            <div *ngFor="let poc of newProduct.pocs; let pi = index; trackBy: trackByIndex" class="flex gap-2">
+              <input type="text" [ngModel]="poc" (ngModelChange)="updateNewProductPoc($event, pi)"
+                placeholder="POC Name"
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+              <button (click)="removeNewProductPoc(pi)"
+                class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                Remove
+              </button>
+            </div>
+            <button (click)="addNewProductPoc()" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+              + Add POC
+            </button>
+          </div>
+        </div>
+
+        <!-- Fixed Versions -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Fixed Versions</label>
+          <div class="space-y-2">
+            <div *ngFor="let version of newProduct.fixed_versions; let vi = index" class="flex gap-2">
+              <input type="text" [(ngModel)]="version.jira_board_id" placeholder="Board ID"
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+              <input type="text" [(ngModel)]="version.fixed_version" placeholder="Version"
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+              <button (click)="removeNewProductVersion(vi)"
+                class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                Remove
+              </button>
+            </div>
+            <button (click)="addNewProductVersion()"
+              class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+              + Add Fixed Version
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+        <button (click)="closeAddProductDialog()"
+          class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors font-medium">
+          Cancel
+        </button>
+        <button (click)="saveNewProduct()" [disabled]="!newProduct.product_id"
+          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+          Add Product
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Attachments Modal -->
+  <div *ngIf="showingAttachments() && release()"
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-    (click)="closeWorkflowDialog()">
-    <div class="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+    (click)="closeAttachmentsDialog()">
+    <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
       (click)="$event.stopPropagation()">
 
       <!-- Modal Header -->
       <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-        <div>
-          <h3 class="text-xl font-bold text-gray-900">Workflow Stages</h3>
-          <p class="text-sm text-gray-500">{{ getProductName(selectedProduct()!.product_id) }}</p>
-        </div>
-        <button (click)="closeWorkflowDialog()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <h3 class="text-xl font-bold text-gray-900">Manage Attachments</h3>
+        <button (click)="closeAttachmentsDialog()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -299,129 +393,9 @@
 
       <!-- Modal Content -->
       <div class="p-6">
-        <app-workflow-progress [workflow]="workflow()!" [product]="selectedProduct()!"
-          [releaseId]="release()!.id || release()!._id || ''" [productId]="selectedProduct()!.product_id"
+        <app-release-attachments [release]="release()!" [workflow]="workflow()!" [productMap]="productMap"
           (releaseUpdated)="onReleaseUpdated($event)">
-        </app-workflow-progress>
+        </app-release-attachments>
       </div>
     </div>
   </div>
-</div>
-
-<!-- Add Product Modal -->
-<div *ngIf="addingProduct()" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-  (click)="closeAddProductDialog()">
-  <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-    (click)="$event.stopPropagation()">
-
-    <!-- Modal Header -->
-    <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-      <h3 class="text-xl font-bold text-gray-900">Add Product to Release</h3>
-      <button (click)="closeAddProductDialog()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      </button>
-    </div>
-
-    <!-- Modal Content -->
-    <div class="p-6 space-y-4">
-      <!-- Product Selection -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">Select Product</label>
-        <select [(ngModel)]="newProduct.product_id"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-          <option value="" disabled>Select a product...</option>
-          <option *ngFor="let product of availableProducts()" [value]="product.id || product._id">
-            {{ product.name }}
-          </option>
-        </select>
-      </div>
-
-      <!-- Scope Description -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">Scope Description</label>
-        <textarea [(ngModel)]="newProduct.scope_description" rows="4"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          placeholder="Enter scope description..."></textarea>
-      </div>
-
-      <!-- POCs -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">POCs</label>
-        <div class="space-y-2">
-          <div *ngFor="let poc of newProduct.pocs; let pi = index; trackBy: trackByIndex" class="flex gap-2">
-            <input type="text" [ngModel]="poc" (ngModelChange)="updateNewProductPoc($event, pi)" placeholder="POC Name"
-              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-            <button (click)="removeNewProductPoc(pi)"
-              class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-              Remove
-            </button>
-          </div>
-          <button (click)="addNewProductPoc()" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
-            + Add POC
-          </button>
-        </div>
-      </div>
-
-      <!-- Fixed Versions -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">Fixed Versions</label>
-        <div class="space-y-2">
-          <div *ngFor="let version of newProduct.fixed_versions; let vi = index" class="flex gap-2">
-            <input type="text" [(ngModel)]="version.jira_board_id" placeholder="Board ID"
-              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-            <input type="text" [(ngModel)]="version.fixed_version" placeholder="Version"
-              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-            <button (click)="removeNewProductVersion(vi)"
-              class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-              Remove
-            </button>
-          </div>
-          <button (click)="addNewProductVersion()" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
-            + Add Fixed Version
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal Footer -->
-    <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
-      <button (click)="closeAddProductDialog()"
-        class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors font-medium">
-        Cancel
-      </button>
-      <button (click)="saveNewProduct()" [disabled]="!newProduct.product_id"
-        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed">
-        Add Product
-      </button>
-    </div>
-  </div>
-</div>
-
-
-<!-- Attachments Modal -->
-<div *ngIf="showingAttachments() && release()"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-  (click)="closeAttachmentsDialog()">
-  <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-    (click)="$event.stopPropagation()">
-
-    <!-- Modal Header -->
-    <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-      <h3 class="text-xl font-bold text-gray-900">Manage Attachments</h3>
-      <button (click)="closeAttachmentsDialog()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      </button>
-    </div>
-
-    <!-- Modal Content -->
-    <div class="p-6">
-      <app-release-attachments [release]="release()!" [workflow]="workflow()!" [productMap]="productMap"
-        (releaseUpdated)="onReleaseUpdated($event)">
-      </app-release-attachments>
-    </div>
-  </div>
-</div>

@@ -2,6 +2,8 @@
 import { Component, OnInit, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Action } from 'rxjs/internal/scheduler/Action';
+import { from } from 'rxjs';
+import { concatMap, toArray } from 'rxjs/operators';
 import { Router, ActivatedRoute, RouterModule, RouterLink } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { ReleaseService } from '../../../core/services/release.service';
@@ -12,7 +14,7 @@ import { Product } from '../../../core/models/product.model';
 import { WorkflowTemplate } from '../../../core/models/workflow.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
-import { WorkflowProgressComponent } from '../../../shared/components/workflow-progress/workflow-progress.component';
+
 import { WorkflowD3ChartComponent } from '../../../shared/components/workflow-d3-chart/workflow-d3-chart.component';
 import { TimelineEditorV2Component } from '../../../shared/components/timeline-editor-v2/timeline-editor-v2.component';
 import { ReleaseAttachmentsComponent } from '../release-attachments/release-attachments.component';
@@ -29,10 +31,9 @@ import { environment } from '../../../../environments/environment';
     LoadingSpinnerComponent,
     AlertComponent,
     ButtonComponent,
-    WorkflowProgressComponent,
     WorkflowD3ChartComponent,
     StageActionCardComponent,
-    TimelineEditorV2Component,
+
     ReleaseAttachmentsComponent,
     FormsModule
   ],
@@ -47,8 +48,6 @@ export class ReleaseDetailsComponent implements OnInit {
   expandedScopes = new Set<number>(); // Track which product scopes are expanded
   workflow = signal<WorkflowTemplate | null>(null);
 
-  @ViewChild('workflowContainer') workflowContainer!: ElementRef;
-
   // Interactive Graph State
   selectedStageInfo = signal<{
     product: any; // ReleaseProduct
@@ -60,17 +59,16 @@ export class ReleaseDetailsComponent implements OnInit {
   cardPosition = signal<{ x: number, y: number } | null>(null);
   processingAction = signal(false);
 
+  @ViewChild('workflowContainer') workflowContainer!: ElementRef;
+
   // State for modals
   editingProductIndex = signal<number | null>(null);
   addingProduct = signal<boolean>(false);
-  selectedProductId = signal<string | null>(null);
   showingAttachments = signal(false);
 
   selectedProduct = computed(() => {
     const release = this.release();
-    const productId = this.selectedProductId();
-    if (!release || !productId) return null;
-    return release.products.find(p => p.product_id === productId) || null;
+    return null;
   });
 
   newProduct: Partial<ReleaseProduct> & { product_id: string; scope_description: string; fixed_versions: any[]; pocs: string[] } = {
@@ -116,13 +114,7 @@ export class ReleaseDetailsComponent implements OnInit {
 
 
 
-  openWorkflowDialog(productId: string): void {
-    this.selectedProductId.set(productId);
-  }
 
-  closeWorkflowDialog(): void {
-    this.selectedProductId.set(null);
-  }
 
   openAttachmentsDialog(): void {
     this.showingAttachments.set(true);
@@ -363,23 +355,28 @@ export class ReleaseDetailsComponent implements OnInit {
 
     this.selectedStageInfo.set({ product, stage, state, status });
 
-    // Calculate Position - relative to the container for simplicity, or fixed if simpler
-    // Using simple absolute positioning based on click/element rect
-    // Adjusting for card size (w-72 = 18rem = ~288px)
+    // Correct Positioning relative to container
+    if (this.workflowContainer) {
+      const containerRect = this.workflowContainer.nativeElement.getBoundingClientRect();
+      const targetRect = event.element; // This is the SVG element rect (viewport relative)
 
-    // Position below the node
-    let left = event.event.clientX;
-    let top = event.event.clientY;
+      // Calculate relative coordinates
+      // We want to position it to the right of the node
+      let x = targetRect.right - containerRect.left + 10;
+      let y = targetRect.top - containerRect.top;
 
-    // We need relative coordinates for 'absolute' positioning within the relative container
-    // This ensures the popup scrolls WITH the page instead of staying fixed on screen
-    const containerRect = this.workflowContainer.nativeElement.getBoundingClientRect();
-    const rect = event.element; // This is the node's bounding rect
+      // Boundary check (Prevent overflow to the right)
+      const CARD_WIDTH = 320; // Approx width
+      if (x + CARD_WIDTH > containerRect.width) {
+        // Flip to left side
+        x = targetRect.left - containerRect.left - CARD_WIDTH - 10;
+      }
 
-    this.cardPosition.set({
-      x: rect.right - containerRect.left + 10,
-      y: rect.top - containerRect.top
-    });
+      this.cardPosition.set({ x, y });
+    } else {
+      // Fallback (though container should exist)
+      this.cardPosition.set({ x: event.event.clientX, y: event.event.clientY });
+    }
   }
 
   closeStageCard(): void {
@@ -433,21 +430,53 @@ export class ReleaseDetailsComponent implements OnInit {
       });
   }
 
-  uploadAttachmentFromCard(file: File): void {
+  uploadAttachmentFromCard(files: File[]): void {
+    if (files.length === 0) return;
     const info = this.selectedStageInfo();
     if (!info) return;
 
     this.processingAction.set(true);
-    this.releaseService.uploadStageAttachment(
+
+    // Process files sequentially
+    from(files).pipe(
+      concatMap(file => this.releaseService.uploadStageAttachment(
+        this.release()!.id || this.release()!._id!,
+        info.product.product_id,
+        info.stage.order,
+        file
+      )),
+      toArray() // Wait for all to complete
+    ).subscribe({
+      next: (responses) => {
+        // The last response contains the latest state
+        if (responses.length > 0) {
+          this.onReleaseUpdated(responses[responses.length - 1]);
+        }
+        this.processingAction.set(false);
+      },
+      error: (err: any) => {
+        this.processingAction.set(false);
+        this.error.set(err.message || 'Error uploading files');
+      }
+    });
+  }
+
+  deleteAttachmentFromCard(file: any): void {
+    const info = this.selectedStageInfo();
+    if (!info || !file.id) return;
+
+    if (!confirm(`Are you sure you want to delete ${file.filename}?`)) return;
+
+    this.processingAction.set(true);
+    this.releaseService.deleteStageAttachment(
       this.release()!.id || this.release()!._id!,
       info.product.product_id,
       info.stage.order,
-      file
+      file.id
     ).subscribe({
       next: (updated) => {
         this.processingAction.set(false);
         this.onReleaseUpdated(updated);
-        // Don't close, user might want to see the result (file name attached)
       },
       error: (err) => {
         this.processingAction.set(false);
@@ -456,12 +485,40 @@ export class ReleaseDetailsComponent implements OnInit {
     });
   }
 
-  downloadAttachmentFromCard(): void {
+  downloadAttachmentFromCard(file: any): void {
+    if (!file || !file.id) return;
+    const baseUrl = environment.apiUrl;
+    // Use hidden iframe or window.open logic (service logic preferred usually but this works for direct links)
+    // Actually use the same logic as release-attachments
+    const url = `${baseUrl}/files/${file.id}/download`;
+    window.open(url, '_blank');
+  }
+
+  downloadAllAttachmentsFromCard(): void {
     const info = this.selectedStageInfo();
-    if (!info || !info.state?.attachment_id) return;
+    if (!info) return;
+
+    const attachments = info.state?.attachments || [];
+    // If we have legacy single attachment, include it if not in array
+    if (info.state?.attachment_id && !attachments.find((a: any) => a.id === info.state!.attachment_id)) {
+      attachments.push({
+        id: info.state.attachment_id,
+        filename: info.state.attachment_filename || 'attachment'
+      });
+    }
+
+    if (attachments.length === 0) return;
+
+    if (attachments.length > 5) {
+      if (!confirm(`You are about to download ${attachments.length} files. Continue?`)) return;
+    }
 
     const baseUrl = environment.apiUrl;
-    window.open(`${baseUrl}/files/${info.state.attachment_id}/download`, '_blank');
+    attachments.forEach((file: any) => {
+      const url = `${baseUrl}/files/${file.id}/download`;
+      // Trigger download in new window/tab
+      window.open(url, '_blank');
+    });
   }
 
   trackByIndex(index: number, item: any): number {

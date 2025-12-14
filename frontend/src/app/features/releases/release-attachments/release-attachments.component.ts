@@ -26,12 +26,26 @@ interface StageAttachmentGroup {
 @Component({
   selector: 'app-release-attachments',
   standalone: true,
-  imports: [CommonModule, ButtonComponent, AlertComponent],
+  imports: [CommonModule, ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-8">
       <!-- Custom Attachments Section -->
-      <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div 
+        class="bg-white rounded-xl border border-gray-200 overflow-hidden relative"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)">
+
+        <!-- Drag Overlay -->
+        <div *ngIf="isDragging" 
+             class="absolute inset-0 z-50 bg-primary-50 bg-opacity-90 border-2 border-primary-500 border-dashed rounded-xl flex flex-col items-center justify-center text-primary-600 pointer-events-none transition-opacity">
+             <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+             </svg>
+             <span class="text-lg font-bold">Drop files here to upload</span>
+        </div>
+
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
           <div class="flex items-center gap-4">
             <h3 class="text-lg font-semibold text-gray-900">General Attachments</h3>
@@ -44,19 +58,23 @@ interface StageAttachmentGroup {
             </button>
           </div>
           <div class="relative">
-            <input type="file" #fileInput class="hidden" (change)="uploadCustomAttachment($event)">
+            <input type="file" #fileInput class="hidden" multiple (change)="uploadCustomAttachment($event)">
             <app-button size="sm" (clicked)="fileInput.click()" [loading]="uploading()">
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
               </svg>
-              Add Attachment
+              Add Files / Drag & Drop
             </app-button>
           </div>
         </div>
         
         <div class="divide-y divide-gray-200">
-          <div *ngIf="release.custom_attachments?.length === 0" class="p-8 text-center text-gray-500">
-            No general attachments added yet.
+          <div *ngIf="(!release.custom_attachments || release.custom_attachments.length === 0) && !uploading()" class="p-8 text-center text-gray-500">
+            No general attachments added yet. Drag & Drop files here.
+          </div>
+           <div *ngIf="uploading()" class="p-8 text-center text-primary-600 flex items-center justify-center gap-2">
+            <span class="animate-spin h-5 w-5 border-2 border-primary-600 border-t-transparent rounded-full"></span>
+            Uploading files...
           </div>
           
           <div *ngFor="let file of release.custom_attachments" class="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
@@ -251,11 +269,41 @@ export class ReleaseAttachmentsComponent {
   }
 
 
+  isDragging = false;
+
+  // Drag and Drop Handlers
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragging = true;
+  }
+
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragging = false;
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragging = false;
+
+    if (event.dataTransfer && event.dataTransfer.files.length > 0) {
+      this.processFiles(Array.from(event.dataTransfer.files));
+    }
+  }
 
   uploadCustomAttachment(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+    if (input.files && input.files.length > 0) {
+      this.processFiles(Array.from(input.files));
+      input.value = ''; // Reset input
+    }
+  }
+
+  async processFiles(files: File[]): Promise<void> {
+    if (files.length === 0) return;
 
     this.uploading.set(true);
     this.error.set(null);
@@ -263,17 +311,28 @@ export class ReleaseAttachmentsComponent {
     const releaseId = this.release.id || this.release._id;
     if (!releaseId) return;
 
-    this.releaseService.uploadCustomAttachment(releaseId, file).subscribe({
-      next: (updatedRelease) => {
-        this.uploading.set(false);
-        this.releaseUpdated.emit(updatedRelease);
-        input.value = ''; // Reset input
-      },
-      error: (err) => {
-        this.uploading.set(false);
-        this.error.set(err.message || 'Failed to upload attachment');
+    // Process uploads sequentially
+    try {
+      for (const file of files) {
+        await new Promise<void>((resolve, reject) => {
+          this.releaseService.uploadCustomAttachment(releaseId, file).subscribe({
+            next: (updatedRelease) => {
+              this.releaseUpdated.emit(updatedRelease);
+              resolve();
+            },
+            error: (err) => {
+              // Log error but continue with next files?
+              console.error(`Failed to upload ${file.name}`, err);
+              this.error.set(`Failed to upload ${file.name}: ${err.message}`);
+              // If one fails, we resolve to try next? 
+              resolve();
+            }
+          });
+        });
       }
-    });
+    } finally {
+      this.uploading.set(false);
+    }
   }
 
   deleteCustomAttachment(attachmentId: string): void {

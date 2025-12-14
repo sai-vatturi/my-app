@@ -91,6 +91,23 @@ async def upload_product_stage_attachment(
         file=file
     )
 
+@router.delete("/{release_id}/products/{product_id}/stages/{stage_order}/attachments/{attachment_id}", response_model=ReleaseResponse)
+async def delete_product_stage_attachment(
+    release_id: str,
+    product_id: str,
+    stage_order: int,
+    attachment_id: str,
+    db = Depends(get_database)
+):
+    """Delete an attachment from a specific workflow stage of a product"""
+    service = ReleaseService(db)
+    return await service.delete_product_stage_attachment(
+        release_id=release_id,
+        product_id=product_id,
+        stage_order=stage_order,
+        attachment_id=attachment_id
+    )
+
 @router.put("/{release_id}/stages/{stage_order}/timeline", response_model=ReleaseResponse)
 async def update_stage_timeline(
     release_id: str,

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import io
+from urllib.parse import quote
 
 from app.schemas.file import FileResponse
 from app.services.file_service import FileService
@@ -61,11 +62,15 @@ async def download_file(
     # Use provided filename if available, otherwise fallback to metadata
     final_filename = filename or file_metadata.get("original_filename") or file_metadata.get("filename", "download")
     
+    # Encode filename for Content-Disposition
+    # RFC 5987: filename*=utf-8''encoded_value
+    encoded_filename = quote(final_filename)
+    
     return StreamingResponse(
         io.BytesIO(file_content),
         media_type=media_type,
         headers={
-            "Content-Disposition": f"attachment; filename=\"{final_filename}\"",
+            "Content-Disposition": f"attachment; filename*=utf-8''{encoded_filename}",
             "Content-Length": str(len(file_content))
         }
     )
