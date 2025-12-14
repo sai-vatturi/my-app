@@ -16,20 +16,49 @@
   tasks:
     # -------------------------------------------------------------------------
     # 1. DATA SANITIZATION (CRITICAL FIX)
-    # Detects if AWX sent the broken [[{key:val},{key:val}]] format and merges 
-    # it into a clean [{key:val, key:val}] list for PowerShell.
+    # AWX may send copy_jobs in a broken format where each job is a list of 
+    # fragments like ["source_path:xxx", "destination_path:yyy", {"exclude_paths":[]}]
+    # This task reconstructs them into proper dicts.
     # -------------------------------------------------------------------------
-    - name: Normalize fragmented copy_jobs (Fix for broken JSON structure)
+    - name: Parse and normalize copy_jobs from AWX
       set_fact:
-        final_copy_jobs: "{{ final_copy_jobs | default([]) + [item | combine] }}"
-      loop: "{{ copy_jobs }}"
-      when: item is sequence and item is not string and item is not mapping
-      
-    - name: Pass through correct copy_jobs (Fallback if upstream fixes data)
-      set_fact:
-        final_copy_jobs: "{{ final_copy_jobs | default([]) + [item] }}"
-      loop: "{{ copy_jobs }}"
-      when: item is mapping
+        final_copy_jobs: >-
+          {%- set result = [] -%}
+          {%- for item in copy_jobs -%}
+            {%- if item is mapping -%}
+              {# Item is already a proper dict, use as-is #}
+              {%- set _ = result.append(item) -%}
+            {%- elif item is sequence and item is not string -%}
+              {# Item is a fragmented list - reconstruct into a single dict #}
+              {%- set merged = {} -%}
+              {%- for fragment in item -%}
+                {%- if fragment is mapping -%}
+                  {# Fragment is a dict (e.g., {"exclude_paths": [...]}) #}
+                  {%- set merged = merged | combine(fragment) -%}
+                {%- elif fragment is string -%}
+                  {# Fragment is a string like "key:value" #}
+                  {%- set colon_idx = fragment.find(':') -%}
+                  {%- if colon_idx > 0 -%}
+                    {%- set key = fragment[:colon_idx] | trim -%}
+                    {%- set val = fragment[colon_idx+1:] | trim -%}
+                    {# Handle null/None values #}
+                    {%- if val == 'null' or val == 'None' or val == '' -%}
+                      {%- set merged = merged | combine({key: None}) -%}
+                    {%- else -%}
+                      {%- set merged = merged | combine({key: val}) -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set _ = result.append(merged) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ result }}
+
+    - name: Debug - Show normalized copy_jobs
+      debug:
+        var: final_copy_jobs
+        verbosity: 0
 
     # -------------------------------------------------------------------------
     # 2. PREP & BACKUP
