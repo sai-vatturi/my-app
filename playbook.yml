@@ -14,32 +14,32 @@
     backup_dir: "{{ backup_destination_path }}\\backup_{{ timestamp }}"
 
   tasks:
-    ############################################################
-    # Prep
-    ############################################################
-    - name: Ensure extract dir
+    ####################################################################
+    # Preparation
+    ####################################################################
+    - name: Ensure extraction directory exists
       win_file:
         path: "{{ extract_dir }}"
         state: directory
 
-    - name: Ensure backup dir
+    - name: Ensure backup directory exists
       win_file:
         path: "{{ backup_dir }}"
         state: directory
 
-    ############################################################
-    # Backup
-    ############################################################
+    ####################################################################
+    # Backup existing deployment
+    ####################################################################
     - name: Backup existing content
       win_robocopy:
         src: "{{ backup_source_paths }}"
         dest: "{{ backup_dir }}"
         flags: /E /COPY:DAT /R:1 /W:2
 
-    ############################################################
-    # Download & Extract
-    ############################################################
-    - name: Download artifact
+    ####################################################################
+    # Download and extract artifact
+    ####################################################################
+    - name: Download artifact from Nexus
       win_get_url:
         url: "{{ nexus_artifact_file }}"
         dest: "{{ artifact_zip }}"
@@ -52,69 +52,67 @@
         dest: "{{ extract_dir }}"
         delete_archive: yes
 
-    ############################################################
-    # NORMALIZE copy_jobs (CRITICAL FIX)
-    ############################################################
-    - name: Normalize copy_jobs
-      set_fact:
-        normalized_copy_jobs: >-
-          {{
-            copy_jobs
-            | map(
-                'ternary',
-                (item is iterable and item is not mapping),
-                item | combine,
-                item
-              )
-          }}
-      loop: "{{ copy_jobs }}"
-      loop_control:
-        loop_var: item
-
-    ############################################################
-    # Deploy
-    ############################################################
-    - name: Deploy files
+    ####################################################################
+    # Deploy files (ROBUST AGAINST BROKEN DOWNSTREAM STRUCTURE)
+    ####################################################################
+    - name: Deploy files using robocopy
       win_shell: |
         $artifactRoot = "{{ extract_dir }}"
 
-        $relativeSrc = "{{ item.source_path | default('') }}"
-        if ([string]::IsNullOrWhiteSpace($relativeSrc)) {
-          $src = $artifactRoot
-        } else {
-          $src = Join-Path $artifactRoot $relativeSrc
+        foreach ($job in {{ copy_jobs | to_json }}) {
+
+          # Normalize broken downstream format
+          if ($job -is [System.Collections.IEnumerable] -and -not ($job -is [hashtable])) {
+            $flat = @{}
+            foreach ($part in $job) {
+              if ($part -is [hashtable]) {
+                foreach ($k in $part.Keys) {
+                  $flat[$k] = $part[$k]
+                }
+              }
+            }
+            $job = $flat
+          }
+
+          # Resolve source path
+          $srcRel = $job.source_path
+          if ([string]::IsNullOrWhiteSpace($srcRel)) {
+            $src = $artifactRoot
+          } else {
+            $src = Join-Path $artifactRoot $srcRel
+          }
+
+          $dst = $job.destination_path
+
+          if (-not (Test-Path $src)) {
+            Write-Error "Source path does not exist: $src"
+            exit 1
+          }
+
+          if (-not (Test-Path $dst)) {
+            Write-Error "Destination path does not exist: $dst"
+            exit 1
+          }
+
+          # Build exclude args
+          $excludeArgs = @()
+          if ($job.exclude_paths) {
+            foreach ($p in $job.exclude_paths) {
+              $excludeArgs += "/XD"
+              $excludeArgs += $p
+            }
+          }
+
+          Write-Output "Deploying from $src to $dst"
+          robocopy "$src" "$dst" /E /COPY:DAT /R:2 /W:2 @excludeArgs
         }
-
-        $dst = "{{ item.destination_path }}"
-
-        if (-not (Test-Path $src)) {
-          Write-Error "Source path missing: $src"
-          exit 1
-        }
-
-        if (-not (Test-Path $dst)) {
-          Write-Error "Destination path missing: $dst"
-          exit 1
-        }
-
-        $excludeArgs = @()
-        {% for p in item.exclude_paths | default([]) %}
-        $excludeArgs += "/XD"
-        $excludeArgs += "{{ p }}"
-        {% endfor %}
-
-        robocopy "$src" "$dst" /E /COPY:DAT /R:2 /W:2 @excludeArgs
-        exit 0
       args:
         executable: powershell
-      loop: "{{ normalized_copy_jobs }}"
-      loop_control:
-        label: "{{ item.destination_path }}"
 
-    ############################################################
-    # Config replacement
-    ############################################################
-    - name: Replace configs
+    ####################################################################
+    # Config replacement (SAFE, OPTIONAL)
+    ####################################################################
+    - name: Replace environment-specific configs
       win_shell: |
         $env = "{{ config_env }}"
 
@@ -122,20 +120,31 @@
         $base = Join-Path "{{ extract_dir }}" "{{ c }}"
 
         if (Test-Path $base) {
-          $webEnv = Join-Path $base ("web.$env.config")
-          $webMain = Join-Path $base "web.config"
-          if (Test-Path $webEnv) { Copy-Item $webEnv $webMain -Force }
 
+          # web.config
+          $webEnv = Join-Path $base ("web.$env.config")
+          if (Test-Path $webEnv) {
+            Copy-Item $webEnv (Join-Path $base "web.config") -Force
+          }
+
+          # appsettings.json
           $appEnv = Join-Path $base ("appsettings.$env.json")
-          $appMain = Join-Path $base "appsettings.json"
-          if (Test-Path $appEnv) { Copy-Item $appEnv $appMain -Force }
+          if (Test-Path $appEnv) {
+            Copy-Item $appEnv (Join-Path $base "appsettings.json") -Force
+          }
         }
         {% endfor %}
       args:
         executable: powershell
+      when:
+        - config_env is defined
+        - config_env | length > 0
 
+  ####################################################################
+  # Cleanup
+  ####################################################################
   post_tasks:
-    - name: Cleanup
+    - name: Cleanup temporary extraction directory
       win_file:
         path: "{{ extract_dir }}"
         state: absent
