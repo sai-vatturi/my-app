@@ -5,7 +5,7 @@
   become_method: runas
 
   vars_files:
-    - ../../secret.yml
+    - ../../../secret.yml
 
   vars:
     timestamp: "{{ ansible_date_time.iso8601_basic | regex_replace(':','-') }}"
@@ -14,55 +14,86 @@
     backup_dir: "{{ backup_destination_path }}\\backup_{{ timestamp }}"
 
   tasks:
-    ####################################################################
-    # Preparation
-    ####################################################################
-    - name: Ensure extraction directory exists
+    ############################################################
+    # Prep
+    ############################################################
+    - name: Ensure extract dir
       win_file:
         path: "{{ extract_dir }}"
         state: directory
 
-    - name: Ensure backup directory exists
+    - name: Ensure backup dir
       win_file:
         path: "{{ backup_dir }}"
         state: directory
 
-    ####################################################################
+    ############################################################
     # Backup
-    ####################################################################
-    - name: Backup application directories
+    ############################################################
+    - name: Backup existing content
       win_robocopy:
         src: "{{ backup_source_paths }}"
         dest: "{{ backup_dir }}"
         flags: /E /COPY:DAT /R:1 /W:2
-      register: backup_result
 
-    ####################################################################
-    # Download + Extract
-    ####################################################################
-    - name: Download artifact from Nexus
+    ############################################################
+    # Download & Extract
+    ############################################################
+    - name: Download artifact
       win_get_url:
         url: "{{ nexus_artifact_file }}"
         dest: "{{ artifact_zip }}"
         url_username: "{{ nexus_user }}"
         url_password: "{{ nexus_pass }}"
 
-    - name: Unzip artifact
+    - name: Extract artifact
       win_unzip:
         src: "{{ artifact_zip }}"
         dest: "{{ extract_dir }}"
         delete_archive: yes
 
-    ####################################################################
-    # Deploy content (preserve excluded paths)
-    ####################################################################
-    - name: Deploy files using robocopy per copy_job
+    ############################################################
+    # NORMALIZE copy_jobs (CRITICAL FIX)
+    ############################################################
+    - name: Normalize copy_jobs
+      set_fact:
+        normalized_copy_jobs: >-
+          {{
+            copy_jobs
+            | map(
+                'ternary',
+                (item is iterable and item is not mapping),
+                item | combine,
+                item
+              )
+          }}
+      loop: "{{ copy_jobs }}"
+      loop_control:
+        loop_var: item
+
+    ############################################################
+    # Deploy
+    ############################################################
+    - name: Deploy files
       win_shell: |
-        $src = "{{ extract_dir }}"
+        $artifactRoot = "{{ extract_dir }}"
+
+        $relativeSrc = "{{ item.source_path | default('') }}"
+        if ([string]::IsNullOrWhiteSpace($relativeSrc)) {
+          $src = $artifactRoot
+        } else {
+          $src = Join-Path $artifactRoot $relativeSrc
+        }
+
         $dst = "{{ item.destination_path }}"
 
+        if (-not (Test-Path $src)) {
+          Write-Error "Source path missing: $src"
+          exit 1
+        }
+
         if (-not (Test-Path $dst)) {
-          Write-Error "Destination path does not exist: $dst"
+          Write-Error "Destination path missing: $dst"
           exit 1
         }
 
@@ -76,54 +107,35 @@
         exit 0
       args:
         executable: powershell
-      loop: "{{ copy_jobs }}"
+      loop: "{{ normalized_copy_jobs }}"
       loop_control:
         label: "{{ item.destination_path }}"
 
-    ####################################################################
-    # Config Management (uses config_env, NOT nexus_environment)
-    ####################################################################
-    - name: Replace web.config and appsettings.json per config_env
+    ############################################################
+    # Config replacement
+    ############################################################
+    - name: Replace configs
       win_shell: |
         $env = "{{ config_env }}"
 
-        {% for cfg in configs %}
-        $base = Join-Path "{{ extract_dir }}" "{{ cfg }}"
+        {% for c in configs | default([]) %}
+        $base = Join-Path "{{ extract_dir }}" "{{ c }}"
 
         if (Test-Path $base) {
-
-          # ---- web.config handling ----
           $webEnv = Join-Path $base ("web.$env.config")
           $webMain = Join-Path $base "web.config"
+          if (Test-Path $webEnv) { Copy-Item $webEnv $webMain -Force }
 
-          if (Test-Path $webEnv) {
-            Write-Output "Replacing web.config in $base"
-            Copy-Item $webEnv $webMain -Force
-          }
-
-          # ---- appsettings.json handling ----
           $appEnv = Join-Path $base ("appsettings.$env.json")
           $appMain = Join-Path $base "appsettings.json"
-
-          if (Test-Path $appEnv) {
-            Write-Output "Replacing appsettings.json in $base"
-            Copy-Item $appEnv $appMain -Force
-          }
+          if (Test-Path $appEnv) { Copy-Item $appEnv $appMain -Force }
         }
         {% endfor %}
       args:
         executable: powershell
-      when:
-        - configs is defined
-        - configs | length > 0
-        - config_env is defined
-        - config_env | length > 0
 
   post_tasks:
-    ####################################################################
-    # Cleanup
-    ####################################################################
-    - name: Cleanup temporary directory
+    - name: Cleanup
       win_file:
         path: "{{ extract_dir }}"
         state: absent
