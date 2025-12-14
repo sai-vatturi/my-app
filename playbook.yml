@@ -16,18 +16,19 @@
   tasks:
     # -------------------------------------------------------------------------
     # 1. DATA PARSING
-    # copy_jobs now uses pipe-delimited strings to avoid YAML/JSON issues:
-    # Format: "source_path|destination_path|exclude1|exclude2|..."
+    # copy_jobs now uses triple-semicolon delimited strings to avoid YAML/JSON issues:
+    # Format: "source_path;;;destination_path;;;exclude1;;;exclude2;;;..."
     # Empty source_path means use artifact root
     # -------------------------------------------------------------------------
-    - name: Parse pipe-delimited copy_jobs into structured data
+    - name: Parse delimited copy_jobs into structured data
       set_fact:
         final_copy_jobs: >-
           {%- set result = [] -%}
           {%- for item in copy_jobs -%}
             {%- if item is string -%}
-              {%- set parts = item.split('|') -%}
-              {%- set src = parts[0] | trim if parts | length > 0 else '' -%}
+              {%- set parts = item.split(';;;') -%}
+              {%- set src_raw = parts[0] | trim if parts | length > 0 else '' -%}
+              {%- set src = None if (src_raw == '' or src_raw | lower == 'null') else src_raw -%}
               {%- set dst = parts[1] | trim if parts | length > 1 else '' -%}
               {%- set excludes = [] -%}
               {%- for i in range(2, parts | length) -%}
@@ -36,7 +37,7 @@
                 {%- endif -%}
               {%- endfor -%}
               {%- set job = {
-                'source_path': src if src else None,
+                'source_path': src,
                 'destination_path': dst,
                 'exclude_paths': excludes
               } -%}
