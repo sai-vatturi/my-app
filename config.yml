@@ -18,3 +18,30 @@ extraVars:
         - AHASposeDocumentTemplates\TW\Endorsements
 
   config_env: test
+
+
+- name: Normalize copy_jobs safely
+  set_fact:
+    normalized_copy_jobs: >-
+      {{
+        normalized_copy_jobs | default([]) + [
+          {
+            'source_path': (
+              item.source_path
+              if item is mapping
+              else (item | selectattr('source_path','defined') | map(attribute='source_path') | first | default(None))
+            ),
+            'destination_path': (
+              item.destination_path
+              if item is mapping
+              else (item | selectattr('destination_path','defined') | map(attribute='destination_path') | first)
+            ),
+            'exclude_paths': (
+              item.exclude_paths
+              if item is mapping
+              else (item | selectattr('exclude_paths','defined') | map(attribute='exclude_paths') | first | default([]))
+            )
+          }
+        ]
+      }}
+  loop: "{{ copy_jobs }}"
