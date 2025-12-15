@@ -11,7 +11,6 @@ class Release:
         self.release_type = kwargs.get('release_type', 'Major release')
         self.status = kwargs.get('status', 'planned')
         self.overall_scope = kwargs.get('overall_scope')
-        self.jira_release_version = kwargs.get('jira_release_version')
         self.chg_number = kwargs.get('chg_number')
         # Products in the release
         self.products = kwargs.get('products', [])
@@ -32,7 +31,6 @@ class Release:
             'release_type': self.release_type,
             'status': self.status,
             'overall_scope': self.overall_scope,
-            'jira_release_version': self.jira_release_version,
             'chg_number': self.chg_number,
             'products': self.products,
             'workflow_states': self.workflow_states,

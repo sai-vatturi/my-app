@@ -94,6 +94,24 @@ export class ReleaseDetailsComponent implements OnInit {
     return Array.from(appNames).sort();
   });
 
+  uniqueFixedVersions = computed(() => {
+    const release = this.release();
+    if (!release || !release.products) return [];
+
+    const versions = new Set<string>();
+    release.products.forEach(p => {
+      // fixed_versions is an array of objects { jira_board_id, fixed_version }
+      if (p.fixed_versions) {
+        p.fixed_versions.forEach(fv => {
+          if (fv && fv.fixed_version) {
+            versions.add(fv.fixed_version);
+          }
+        });
+      }
+    });
+    return Array.from(versions).sort();
+  });
+
   newProduct: Partial<ReleaseProduct> & { product_id: string; scope_description: string; fixed_versions: any[]; pocs: string[] } = {
     product_id: '',
     scope_description: '',
@@ -402,6 +420,11 @@ export class ReleaseDetailsComponent implements OnInit {
     if (this.selectedStageInfo()) {
       this.refreshSelectedStageInfo(updatedRelease);
     }
+  }
+
+  getStatusLabel(status: string): string {
+    if (!status) return '';
+    return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
   // --- Graph Interaction ---

@@ -36,7 +36,9 @@ class ProductService:
             team_leads=product_data.team_leads,
             principal_engineers=product_data.principal_engineers,
             jira_boards=jira_boards_dicts,
-            squads=product_data.squads
+            squads=product_data.squads,
+            business_unit_id=product_data.business_unit_id,
+            application_ids=product_data.application_ids or []
         )
         
         result = await self.collection.insert_one(product.to_dict())

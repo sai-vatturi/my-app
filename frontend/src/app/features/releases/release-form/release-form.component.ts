@@ -45,7 +45,13 @@ export class ReleaseFormComponent implements OnInit {
   loading = signal(false);
   submitting = signal(false);
   error = signal<string | null>(null);
-  availableProducts = signal<Product[]>([]);
+  allProducts = signal<Product[]>([]); // Full list of products
+  availableProducts = computed(() => { // Filtered by Business Unit
+    const buId = this.currentBusinessUnitId();
+    if (!buId) return [];
+    return this.allProducts().filter(p => p.business_unit_id === buId);
+  });
+  currentBusinessUnitId = signal<string>('');
   availableWorkflows = signal<WorkflowTemplate[]>([]);
   businessUnits = signal<BusinessUnit[]>([]);
   releaseTypes = signal<string[]>([]);
@@ -74,13 +80,16 @@ export class ReleaseFormComponent implements OnInit {
     this.form = this.fb.group({
       name: ['', Validators.required],
       description: [''],
-      business_unit_id: [''],
+      business_unit_id: ['', Validators.required],
       release_type: [ReleaseType.MAJOR_RELEASE, Validators.required],
-      status: ['planned'],
       release_date: ['', Validators.required],
       chg_number: [''],
-      jira_release_version: [''],
       overall_scope: ['']
+    });
+
+    // Track Business Unit changes to filter products
+    this.form.get('business_unit_id')?.valueChanges.subscribe(value => {
+      this.currentBusinessUnitId.set(value);
     });
   }
 
@@ -89,13 +98,20 @@ export class ReleaseFormComponent implements OnInit {
     this.loadBusinessUnits();
     this.releaseId = this.route.snapshot.paramMap.get('id');
     this.isEdit = !!this.releaseId;
-    if (this.isEdit && this.releaseId) this.loadRelease(this.releaseId);
+    if (this.isEdit) {
+      this.form.get('business_unit_id')?.disable();
+      if (this.releaseId) this.loadRelease(this.releaseId);
+    }
     this.loadProducts();
   }
 
   loadProducts(): void {
     this.productService.getAll().subscribe(products => {
-      this.availableProducts.set(products);
+      this.allProducts.set(products);
+      // Initialize current BU if form has value
+      const currentBu = this.form.get('business_unit_id')?.value;
+      if (currentBu) this.currentBusinessUnitId.set(currentBu);
+
       products.forEach(p => {
         const id = p.id || p._id;
         if (id) this.productMap.set(id, p.name);
@@ -144,7 +160,8 @@ export class ReleaseFormComponent implements OnInit {
     this.releaseService.getById(id).subscribe({
       next: (release) => {
         const releaseDate = new Date(release.release_date);
-        const formattedDate = releaseDate.toISOString().slice(0, 16);
+        releaseDate.setSeconds(0, 0); // Force seconds to 00
+        // Remove formattedDate assignment to avoid unused var if we inline it
 
         this.form.patchValue({
           name: release.name,
@@ -152,9 +169,8 @@ export class ReleaseFormComponent implements OnInit {
           business_unit_id: release.business_unit_id || '',
           release_type: release.release_type,
           status: release.status,
-          release_date: formattedDate,
+          release_date: releaseDate.toISOString().slice(0, 19), // Include seconds
           chg_number: release.chg_number || '',
-          jira_release_version: release.jira_release_version || '',
           overall_scope: release.overall_scope || ''
         });
 
@@ -240,14 +256,26 @@ export class ReleaseFormComponent implements OnInit {
   }
 
   finish(): void {
-    if (this.releaseId) {
+    const name = this.createdRelease()?.name;
+    if (name) {
+      this.router.navigate(['/releases', name]);
+    } else if (this.releaseId) {
+      // Fallback
       this.router.navigate(['/releases', this.releaseId]);
     }
   }
 
   cancel(): void {
-    if (this.isEdit && this.releaseId) {
-      this.router.navigate(['/releases', this.releaseId]);
+    if (this.isEdit) {
+      // Try to get name from createdRelease (loaded from DB)
+      const name = this.createdRelease()?.name;
+      if (name) {
+        this.router.navigate(['/releases', name]);
+      } else if (this.releaseId) {
+        this.router.navigate(['/releases', this.releaseId]);
+      } else {
+        this.router.navigate(['/releases']);
+      }
     } else {
       this.router.navigate(['/releases']);
     }

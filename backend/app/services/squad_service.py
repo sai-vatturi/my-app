@@ -31,7 +31,8 @@ class SquadService:
             description=squad_data.description,
             team_leads=squad_data.team_leads,
             principal_engineers=squad_data.principal_engineers,
-            products=squad_data.products
+            products=squad_data.products,
+            business_unit_id=squad_data.business_unit_id
         )
         
         result = await self.collection.insert_one(squad.to_dict())

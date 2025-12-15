@@ -59,8 +59,13 @@ class ReleaseService:
         return releases
 
     async def get_release_by_id(self, release_id: str) -> Optional[dict]:
-        """Get a specific release by ID"""
-        release = await self.collection.find_one({"_id": ObjectId(release_id)})
+        """Get a specific release by ID or Name"""
+        if ObjectId.is_valid(release_id):
+            query = {"_id": ObjectId(release_id)}
+        else:
+            query = {"name": release_id}
+            
+        release = await self.collection.find_one(query)
         if release and "workflow_states" not in release:
             # Migration: Initialize workflow_states if missing
             workflow = await self._get_workflow_or_error(release.get("release_type"))
@@ -69,6 +74,11 @@ class ReleaseService:
                 {"_id": release["_id"]},
                 {"$set": {"workflow_states": release["workflow_states"]}}
             )
+        
+        # Auto-update status based on rules
+        if release:
+            release = await self._refresh_release_status(release)
+            
         return release
 
     async def create_release(self, release_data: ReleaseCreate) -> dict:
@@ -87,12 +97,12 @@ class ReleaseService:
             description=release_data.description,
             release_date=release_data.release_date,
             release_type=release_data.release_type,
-            status=release_data.status,
+            status="planned", # Force initial status
             overall_scope=release_data.overall_scope,
-            jira_release_version=release_data.jira_release_version,
             chg_number=release_data.chg_number,
             products=products_dicts,
             workflow_states=workflow_state_template,
+            business_unit_id=release_data.business_unit_id,
         )
 
         result = await self.collection.insert_one(release.to_dict())
@@ -102,7 +112,16 @@ class ReleaseService:
         self, release_id: str, release_data: ReleaseUpdate
     ) -> Optional[dict]:
         """Update an existing release"""
-        existing_release = await self.collection.find_one({"_id": ObjectId(release_id)})
+    async def update_release(
+        self, release_id: str, release_data: ReleaseUpdate
+    ) -> Optional[dict]:
+        """Update an existing release"""
+        if ObjectId.is_valid(release_id):
+            query = {"_id": ObjectId(release_id)}
+        else:
+            query = {"name": release_id}
+            
+        existing_release = await self.collection.find_one(query)
         if not existing_release:
             return None
 
@@ -139,7 +158,7 @@ class ReleaseService:
                         {"workflow_states": existing_states}, workflow, release_date
                     )
                     product_dict["workflow_states"] = states
-                elif "workflow_states" not in product_dict:
+                else: # New product or product without states
                     # If new product, initialize workflow states
                     workflow = await self._get_workflow_or_error(existing_release.get("release_type"))
                     release_date = existing_release.get("release_date")
@@ -151,16 +170,23 @@ class ReleaseService:
 
         if update_data:
             update_data["updated_at"] = utils.get_utc_now()
+        if update_data:
+            update_data["updated_at"] = utils.get_utc_now()
             await self.collection.update_one(
-                {"_id": ObjectId(release_id)},
+                {"_id": existing_release["_id"]},
                 {"$set": update_data},
             )
 
-        return await self.collection.find_one({"_id": ObjectId(release_id)})
+        return await self.collection.find_one({"_id": existing_release["_id"]})
 
     async def delete_release(self, release_id: str) -> bool:
         """Delete a release"""
-        result = await self.collection.delete_one({"_id": ObjectId(release_id)})
+        if ObjectId.is_valid(release_id):
+            query = {"_id": ObjectId(release_id)}
+        else:
+            query = {"name": release_id}
+            
+        result = await self.collection.delete_one(query)
         return result.deleted_count > 0
 
     async def revert_product_stage(self, release_id: str, product_id: str) -> dict:
@@ -226,16 +252,12 @@ class ReleaseService:
         stage_state = states.get(stage_key)
 
         if next_stage.get("requires_attachment") and next_stage.get("attachment_mandatory"):
-            if not stage_state.get("attachment_id") and not stage_state.get("attachments"): # Fix for attachments array check
-                 # Also check backward compatibility ID if array is empty? 
-                 # logic above checks both indirectly via blank_stage structure defaults but be explicit
-                 if not stage_state.get("attachment_id") and not stage_state.get("attachments"):
+            if not stage_state.get("attachment_id") and not stage_state.get("attachments"):
                     raise HTTPException(
                         status_code=400,
                         detail=f"Stage '{next_stage['name']}' requires an attachment before advancing.",
                     )
 
-        # now = datetime.now(timezone.utc) -> not needed var if we use utils direct, but let's see logic below uses 'now'
         now = utils.get_utc_now()
         await self.collection.update_one(
             {"_id": release["_id"], "products.product_id": product_id},
@@ -247,8 +269,10 @@ class ReleaseService:
                 }
             },
         )
-
-        return await self.get_release_by_id(release_id)
+        
+        # Check if this completion triggers release completion
+        updated_release = await self.get_release_by_id(release_id)
+        return updated_release
 
     async def upload_product_stage_attachment(
         self,
@@ -292,7 +316,7 @@ class ReleaseService:
         # Prepare attachment data
         attachment_data = {
             "id": file_id,
-            "filename": filename,
+            "filename": file.filename,
             "uploaded_at": now,
             "uploaded_by": uploaded_by
         }
@@ -310,7 +334,7 @@ class ReleaseService:
                 "$set": {
                     # Keep these for backward compatibility for a bit, or just update them to the LATEST file
                     f"products.$.workflow_states.{stage_key}.attachment_id": file_id,
-                    f"products.$.workflow_states.{stage_key}.attachment_filename": filename,
+                    f"products.$.workflow_states.{stage_key}.attachment_filename": file.filename,
                     f"products.$.workflow_states.{stage_key}.attachment_uploaded_at": now,
                     "updated_at": now,
                 }
@@ -417,7 +441,7 @@ class ReleaseService:
         }
 
         await self.collection.update_one(
-            {"_id": ObjectId(release_id)},
+            {"_id": release["_id"]},
             {
                 "$push": {"custom_attachments": attachment_data},
                 "$set": {"updated_at": now}
@@ -446,7 +470,7 @@ class ReleaseService:
 
         # Remove from release document
         await self.collection.update_one(
-            {"_id": ObjectId(release_id)},
+            {"_id": release["_id"]},
             {
                 "$pull": {"custom_attachments": {"id": attachment_id}},
                 "$set": {"updated_at": utils.get_utc_now()}
@@ -540,7 +564,12 @@ class ReleaseService:
         )
 
     async def _get_release_or_404(self, release_id: str) -> dict:
-        release = await self.collection.find_one({"_id": ObjectId(release_id)})
+        if ObjectId.is_valid(release_id):
+            query = {"_id": ObjectId(release_id)}
+        else:
+            query = {"name": release_id}
+            
+        release = await self.collection.find_one(query)
         if not release:
             raise HTTPException(status_code=404, detail="Release not found")
         return release
@@ -575,10 +604,11 @@ class ReleaseService:
         for stage in sorted(workflow.get("stages", []), key=lambda s: s["order"]):
             days_before = stage.get("default_days_before_release", 0)
             deadline = None
-            if release_date and isinstance(release_date, datetime) and days_before > 0:
+            if release_date and days_before >= 0:
                 # Calculate deadline excluding weekends (Saturday=5, Sunday=6)
-                # Calculate deadline excluding weekends
-                deadline = utils.calculate_deadline(release_date, days_before)
+                if isinstance(release_date, datetime):
+                     deadline = utils.calculate_deadline(release_date, days_before)
+            
             template[str(stage["order"])] = self._blank_stage_state(
                 deadline=deadline
             )
@@ -631,6 +661,91 @@ class ReleaseService:
             if not state or not state.get("status"):
                 return stage
         return None
+
+    async def _refresh_release_status(self, release: dict) -> dict:
+        """
+        Automatically update release status based on rules:
+        - Planned: Default
+        - In Progress: If current time > first stage deadline for any product
+        - Completed: If all products have completed the last stage
+        """
+        current_status = release.get("status", "planned")
+        
+        # Don't auto-update if cancelled
+        if current_status == "cancelled":
+            return release
+            
+        new_status = current_status
+        
+        # check completion
+        products = release.get("products", [])
+        if products:
+            workflow = await self._get_workflow_or_error(release.get("release_type"))
+            sorted_stages = sorted(workflow.get("stages", []), key=lambda s: s["order"])
+            
+            if sorted_stages:
+                last_stage_order = str(sorted_stages[-1]["order"])
+                first_stage_order = str(sorted_stages[0]["order"])
+                
+                # Check for Completion (All products finished last stage)
+                all_completed = True
+                for p in products:
+                    states = p.get("workflow_states", {})
+                    last_stage_state = states.get(last_stage_order, {})
+                    if not last_stage_state.get("status"):
+                        all_completed = False
+                        break
+                
+                if all_completed:
+                    new_status = "completed"
+                else:
+                    # Check for In Progress:
+                    # 1. Any stage completed?
+                    in_progress = False
+                    for p in products:
+                        states = p.get("workflow_states", {})
+                        for s in states.values():
+                            if s.get("status") is True:
+                                in_progress = True
+                                break
+                        if in_progress:
+                            break
+                    
+                    # 2. If not, check if we passed the earliest deadline (Time-based start)
+                    if not in_progress:
+                        now = utils.get_utc_now()
+                        earliest_deadline = None
+                        for p in products:
+                            states = p.get("workflow_states", {})
+                            for s in states.values():
+                                d_str = s.get("deadline")
+                                if d_str:
+                                    try:
+                                        d = datetime.fromisoformat(d_str.replace("Z", "+00:00"))
+                                        if earliest_deadline is None or d < earliest_deadline:
+                                            earliest_deadline = d
+                                    except:
+                                        pass
+                        
+                        if earliest_deadline and now > earliest_deadline:
+                            in_progress = True
+
+                    if in_progress:
+                        new_status = "in_progress"
+                    else:
+                        new_status = "planned"
+        else:
+             # No products? planned
+             new_status = "planned"
+        
+        if new_status != current_status:
+            await self.collection.update_one(
+                {"_id": release["_id"]},
+                {"$set": {"status": new_status, "updated_at": utils.get_utc_now()}}
+            )
+            release["status"] = new_status
+            
+        return release
 
     def _get_stage_by_order(self, workflow: dict, order: int) -> Optional[dict]:
         for stage in workflow.get("stages", []):

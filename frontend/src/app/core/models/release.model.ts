@@ -36,7 +36,6 @@ export interface Release {
   release_type: ReleaseType;
   status: string; // planned, in_progress, completed, cancelled
   overall_scope?: string;
-  jira_release_version?: string;
   chg_number?: string;
   products: ReleaseProduct[];  // Products in the release
   workflow_states?: { [key: string]: WorkflowStageState }; // Release-level default timeline
@@ -53,9 +52,9 @@ export interface ReleaseCreate {
   release_type: ReleaseType;
   status?: string;
   overall_scope?: string;
-  jira_release_version?: string;
   chg_number?: string;
   products?: ReleaseProduct[];
+  business_unit_id?: string;
 }
 
 export interface ReleaseUpdate {
@@ -65,7 +64,7 @@ export interface ReleaseUpdate {
   release_type?: ReleaseType;
   status?: string;
   overall_scope?: string;
-  jira_release_version?: string;
   chg_number?: string;
   products?: ReleaseProduct[];
+  business_unit_id?: string;
 }

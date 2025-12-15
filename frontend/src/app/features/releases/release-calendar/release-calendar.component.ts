@@ -57,6 +57,7 @@ export class ReleaseCalendarComponent implements OnInit {
   workflows = signal<Map<string, any>>(new Map()); // Map release_type -> WorkflowTemplate
   businessUnits = signal<Map<string, string>>(new Map()); // Map ID -> Name
   businessUnitList = signal<BusinessUnit[]>([]);
+  localSelectedUnitId = signal<string | null>(null); // Local filter for calendar, distinct from global
   selectedRelease = signal<Release | null>(null);
   selectedWorkflow = signal<any | null>(null);
   moreEventsDay = signal<CalendarDay | null>(null);
@@ -88,7 +89,7 @@ export class ReleaseCalendarComponent implements OnInit {
       this.releases(),
       this.workflows(),
       this.businessUnits(),
-      this.businessUnitService.selectedBusinessUnitId()
+      this.localSelectedUnitId()
     );
   });
 
@@ -100,6 +101,9 @@ export class ReleaseCalendarComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
+    // Release calendar should always show All Business Units by default (local state)
+    this.localSelectedUnitId.set(null);
+
     this.loadProducts();
     this.loadWorkflows();
     this.loadBusinessUnits();
@@ -134,7 +138,7 @@ export class ReleaseCalendarComponent implements OnInit {
   onBusinessUnitChange(event: Event): void {
     const select = event.target as HTMLSelectElement;
     const value = select.value;
-    this.businessUnitService.setSelectedUnit(value === 'all' ? null : value);
+    this.localSelectedUnitId.set(value === 'all' ? null : value);
   }
 
   private loadReleases(): void {

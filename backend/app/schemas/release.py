@@ -49,7 +49,6 @@ class ReleaseBase(BaseModel):
     release_type: str = Field(default="Major release")
     status: str = "planned"  # planned, in_progress, completed, cancelled
     overall_scope: Optional[str] = None
-    jira_release_version: Optional[str] = None  # Optional field
     chg_number: Optional[str] = None  # Change Request number
     products: List[ReleaseProduct] = Field(default_factory=list)
     workflow_states: Dict[str, WorkflowStageState] = Field(default_factory=dict)
@@ -66,7 +65,6 @@ class ReleaseUpdate(BaseModel):
     release_type: Optional[str] = None
     status: Optional[str] = None
     overall_scope: Optional[str] = None
-    jira_release_version: Optional[str] = None
     chg_number: Optional[str] = None
     products: Optional[List[ReleaseProduct]] = None
     business_unit_id: Optional[str] = None

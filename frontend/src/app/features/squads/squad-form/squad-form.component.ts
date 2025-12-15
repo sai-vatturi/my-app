@@ -52,7 +52,7 @@ export class SquadFormComponent implements OnInit {
     this.form = this.fb.group({
       name: ['', Validators.required],
       description: [''],
-      business_unit_id: [''],
+      business_unit_id: ['', Validators.required],
       team_leads: this.fb.array([]),
       products: this.fb.array([])
     });
