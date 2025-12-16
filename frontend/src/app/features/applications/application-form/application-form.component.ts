@@ -3,17 +3,22 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ApplicationService } from '../../../core/services/application.service';
+import { AlertComponent } from '../../../shared/components/alert/alert.component';
+import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
+import { ButtonComponent } from '../../../shared/components/button/button.component';
 
 @Component({
     selector: 'app-application-form',
     standalone: true,
-    imports: [CommonModule, ReactiveFormsModule, RouterModule],
+    imports: [CommonModule, ReactiveFormsModule, RouterModule, AlertComponent, LoadingSpinnerComponent, ButtonComponent],
     templateUrl: './application-form.component.html'
 })
 export class ApplicationFormComponent implements OnInit {
     applicationForm: FormGroup;
     isEditMode = signal<boolean>(false);
     submitting = signal<boolean>(false);
+    loading = signal<boolean>(false);
+    error = signal<string | null>(null);
     applicationId: string | null = null;
 
     constructor(

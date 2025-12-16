@@ -157,6 +157,7 @@ async def delete_custom_attachment(
     db = Depends(get_database)
 ):
     """Delete a custom attachment"""
+    service = ReleaseService(db)
     return await service.delete_custom_attachment(
         release_id=release_id,
         attachment_id=attachment_id

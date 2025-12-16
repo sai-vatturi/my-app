@@ -32,6 +32,10 @@ class FixedVersionInfo(BaseModel):
 class ReleaseProduct(BaseModel):
     product_id: str
     scope_description: Optional[str] = None
+    new_features: Optional[str] = None
+    enhancements: Optional[str] = None
+    key_defect_fixes: Optional[str] = None
+    deferred_items: Optional[str] = None
     pocs: List[str] = Field(default_factory=list)  # Multiple Points of Contact for this product
     fixed_versions: List[FixedVersionInfo] = Field(default_factory=list)
     workflow_states: Dict[str, WorkflowStageState] = Field(default_factory=dict)

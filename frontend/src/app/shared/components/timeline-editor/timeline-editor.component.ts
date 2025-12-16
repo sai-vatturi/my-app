@@ -1,11 +1,17 @@
 import { Component, Input, Output, EventEmitter, signal, ChangeDetectionStrategy, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, FormArray, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ReleaseService } from '../../../core/services/release.service';
-import { WorkflowTemplate, WorkflowStage } from '../../../core/models/workflow.model';
+import { WorkflowTemplate } from '../../../core/models/workflow.model';
 import { Release, ReleaseProduct } from '../../../core/models/release.model';
 import { AlertComponent } from '../alert/alert.component';
 import { ButtonComponent } from '../button/button.component';
+
+export interface TimelineUpdateEvent {
+  stageOrder: number;
+  productId?: string;
+  deadline: Date;
+}
 
 @Component({
   selector: 'app-timeline-editor',
@@ -19,7 +25,9 @@ export class TimelineEditorComponent {
   @Input() workflow!: WorkflowTemplate;
   @Input() products!: ReleaseProduct[];
   @Input() productMap?: Map<string, string>;
+  @Input() draftMode: boolean = false;
   @Output() releaseUpdated = new EventEmitter<Release>();
+  @Output() timelineUpdate = new EventEmitter<TimelineUpdateEvent>();
 
   form: FormGroup;
   submitting = signal(false);
@@ -44,56 +52,75 @@ export class TimelineEditorComponent {
     private releaseService: ReleaseService
   ) {
     this.form = this.fb.group({
-      days_before_release: [0, [Validators.required, Validators.min(0)]],
+      deadline_date: ['', [Validators.required]],
+      deadline_time: ['18:00'], // Default 6 PM SGT
       product_id: ['']
     });
   }
 
+  getMinDate(): string {
+    return new Date().toISOString().split('T')[0];
+  }
+
   selectStage(stageOrder: number): void {
     this.selectedStage.set(stageOrder);
-    const stage = this.sortedStages().find(s => s.order === stageOrder);
-    if (stage) {
-      // Calculate days before release from deadline if available, otherwise use default
-      const firstProduct = this.products[0];
-      let daysBefore = stage.default_days_before_release;
-      
-      if (firstProduct?.workflow_states) {
-        const state = firstProduct.workflow_states[stageOrder.toString()];
-        if (state?.deadline && this.release?.release_date) {
-          // Calculate days between deadline and release date
-          const deadlineDate = new Date(state.deadline);
-          const releaseDate = new Date(this.release.release_date);
-          const diffTime = releaseDate.getTime() - deadlineDate.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          if (diffDays > 0) {
-            daysBefore = diffDays;
-          }
-        }
+
+    let deadlineStr: string | null = null;
+    if (this.release.workflow_states) {
+      const state = this.release.workflow_states[stageOrder.toString()];
+      if (state?.deadline) {
+        deadlineStr = state.deadline;
       }
-      
+    }
+
+    if (deadlineStr) {
+      const deadline = new Date(deadlineStr);
+      const dateStr = deadline.toISOString().split('T')[0];
+      const timeStr = deadline.toTimeString().slice(0, 5);
       this.form.patchValue({
-        days_before_release: daysBefore
+        deadline_date: dateStr,
+        deadline_time: timeStr
       });
+    } else {
+      this.calculateDefaultDeadline(stageOrder);
     }
   }
 
-  getStageDeadline(stageOrder: number, product?: ReleaseProduct): string | null {
-    if (!product?.workflow_states) return null;
-    const state = product.workflow_states[stageOrder.toString()];
-    return state?.deadline || null;
+  calculateDefaultDeadline(stageOrder: number): void {
+    const stage = this.sortedStages().find(s => s.order === stageOrder);
+    if (!stage || !this.release.release_date) return;
+
+    const releaseDate = new Date(this.release.release_date);
+    const daysBefore = stage.default_days_before_release || 0;
+
+    let targetDate = new Date(releaseDate);
+    let daysSubtracted = 0;
+
+    while (daysSubtracted < daysBefore) {
+      targetDate.setDate(targetDate.getDate() - 1);
+      const dayOfWeek = targetDate.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        daysSubtracted += 1;
+      }
+    }
+
+    const dateStr = targetDate.toISOString().split('T')[0];
+    this.form.patchValue({
+      deadline_date: dateStr,
+      deadline_time: '18:00'
+    });
   }
 
-  getStageDaysBefore(stageOrder: number, product?: ReleaseProduct): number | null {
-    if (!product?.workflow_states || !this.release?.release_date) return null;
-    const state = product.workflow_states[stageOrder.toString()];
-    if (!state?.deadline) return null;
-    
-    // Calculate days before release from deadline
-    const deadlineDate = new Date(state.deadline);
-    const releaseDate = new Date(this.release.release_date);
-    const diffTime = releaseDate.getTime() - deadlineDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : null;
+  getStageDeadline(stageOrder: number, product?: ReleaseProduct): string | null {
+    if (product) {
+      if (!product.workflow_states) return null;
+      const state = product.workflow_states[stageOrder.toString()];
+      return state?.deadline || null;
+    } else {
+      if (!this.release.workflow_states) return null;
+      const state = this.release.workflow_states[stageOrder.toString()];
+      return state?.deadline || null;
+    }
   }
 
   onSubmit(): void {
@@ -104,27 +131,42 @@ export class TimelineEditorComponent {
     }
 
     if (this.form.invalid) {
-      this.error.set('Please enter a valid number of days');
+      this.error.set('Please enter a valid date and time');
       return;
     }
 
     this.submitting.set(true);
     this.error.set(null);
 
-    const daysBefore = this.form.value.days_before_release;
-    const productId = this.applyToAll() ? undefined : this.form.value.product_id;
+    const dateStr = this.form.value.deadline_date;
+    const timeStr = this.form.value.deadline_time;
+
+    const deadline = new Date(`${dateStr}T${timeStr}:00`);
+
+    if (this.draftMode) {
+      this.timelineUpdate.emit({
+        stageOrder: stageOrder,
+        productId: this.applyToAll() ? undefined : this.form.value.product_id,
+        deadline: deadline
+      });
+      this.selectedStage.set(null);
+      this.form.reset({ deadline_time: '18:00' });
+      this.submitting.set(false);
+      return;
+    }
 
     this.releaseService.updateStageTimeline(
       this.release.id || this.release._id || '',
       stageOrder,
-      daysBefore,
-      productId
+      undefined,
+      this.applyToAll() ? undefined : this.form.value.product_id,
+      deadline
     ).subscribe({
       next: (updatedRelease) => {
         this.submitting.set(false);
         this.releaseUpdated.emit(updatedRelease);
         this.selectedStage.set(null);
-        this.form.reset();
+        this.form.reset({ deadline_time: '18:00' });
       },
       error: (err) => {
         this.submitting.set(false);
@@ -136,7 +178,13 @@ export class TimelineEditorComponent {
   formatDeadline(deadline: string | null): string {
     if (!deadline) return 'Not set';
     const date = new Date(deadline);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 
   isOverdue(deadline: string | null): boolean {
@@ -144,4 +192,3 @@ export class TimelineEditorComponent {
     return new Date(deadline) < new Date();
   }
 }
-

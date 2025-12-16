@@ -18,10 +18,12 @@ import { LoadingSpinnerComponent } from '../../../shared/components/loading-spin
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 
 import { WorkflowD3ChartComponent } from '../../../shared/components/workflow-d3-chart/workflow-d3-chart.component';
-import { TimelineEditorV2Component } from '../../../shared/components/timeline-editor-v2/timeline-editor-v2.component';
+import { TimelineEditorComponent } from '../../../shared/components/timeline-editor/timeline-editor.component';
 import { ReleaseAttachmentsComponent } from '../release-attachments/release-attachments.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
 import { StageActionCardComponent } from '../../../shared/components/stage-action-card/stage-action-card.component';
+import { ReleaseProductsTableComponent } from '../release-products-table/release-products-table';
+import { ProductEditDialogComponent, ProductDialogData } from '../product-edit-dialog/product-edit-dialog';
 import { environment } from '../../../../environments/environment';
 
 @Component({
@@ -37,6 +39,8 @@ import { environment } from '../../../../environments/environment';
     StageActionCardComponent,
 
     ReleaseAttachmentsComponent,
+    ReleaseProductsTableComponent,
+    ProductEditDialogComponent,
     FormsModule
   ],
   templateUrl: './release-details.component.html',
@@ -66,7 +70,9 @@ export class ReleaseDetailsComponent implements OnInit {
 
   // State for modals
   editingProductIndex = signal<number | null>(null);
+  editingProduct = signal<ProductDialogData | null>(null);
   addingProduct = signal<boolean>(false);
+  newProductData = signal<ProductDialogData | null>(null);
   showingAttachments = signal(false);
 
   selectedProduct = computed(() => {
@@ -112,12 +118,6 @@ export class ReleaseDetailsComponent implements OnInit {
     return Array.from(versions).sort();
   });
 
-  newProduct: Partial<ReleaseProduct> & { product_id: string; scope_description: string; fixed_versions: any[]; pocs: string[] } = {
-    product_id: '',
-    scope_description: '',
-    fixed_versions: [],
-    pocs: []
-  };
   availableProducts = signal<Product[]>([]);
   businessUnitName = signal<string | null>(null);
 
@@ -214,35 +214,52 @@ export class ReleaseDetailsComponent implements OnInit {
   }
 
   editProduct(index: number): void {
+    const currentRelease = this.release();
+    if (!currentRelease) return;
+    const product = currentRelease.products[index];
+    this.editingProduct.set({
+      product_id: product.product_id,
+      new_features: product.new_features || '',
+      enhancements: product.enhancements || '',
+      key_defect_fixes: product.key_defect_fixes || '',
+      deferred_items: product.deferred_items || '',
+      pocs: [...(product.pocs || [])],
+      fixed_versions: (product.fixed_versions || []).map((v: any) => ({ ...v })),
+      workflow_states: product.workflow_states,
+    });
     this.editingProductIndex.set(index);
   }
 
   closeProductDialog(): void {
     this.editingProductIndex.set(null);
+    this.editingProduct.set(null);
   }
 
   openAddProductDialog(): void {
-    this.newProduct = {
+    this.newProductData.set({
       product_id: '',
-      scope_description: '',
+      new_features: '',
+      enhancements: '',
+      key_defect_fixes: '',
+      deferred_items: '',
       fixed_versions: [],
       pocs: []
-    };
+    });
     this.addingProduct.set(true);
   }
 
   closeAddProductDialog(): void {
     this.addingProduct.set(false);
+    this.newProductData.set(null);
   }
 
-  saveNewProduct(): void {
-    if (!this.newProduct.product_id) return;
+  onSaveNewProduct(productData: ProductDialogData): void {
+    if (!productData.product_id) return;
 
     const currentRelease = this.release();
     if (!currentRelease) return;
 
-    const updatedProducts = [...currentRelease.products, this.newProduct];
-
+    const updatedProducts = [...currentRelease.products, productData];
     const releaseId = currentRelease.id || currentRelease._id;
     if (!releaseId) return;
 
@@ -257,30 +274,7 @@ export class ReleaseDetailsComponent implements OnInit {
     });
   }
 
-  // Helper for new product form
-  addNewProductPoc(): void {
-    this.newProduct.pocs.push('');
-  }
-
-  removeNewProductPoc(index: number): void {
-    this.newProduct.pocs.splice(index, 1);
-  }
-
-  updateNewProductPoc(value: string, index: number): void {
-    const updatedPocs = [...this.newProduct.pocs];
-    updatedPocs[index] = value;
-    this.newProduct.pocs = updatedPocs;
-  }
-
-  addNewProductVersion(): void {
-    this.newProduct.fixed_versions.push({ jira_board_id: '', fixed_version: '' });
-  }
-
-  removeNewProductVersion(index: number): void {
-    this.newProduct.fixed_versions.splice(index, 1);
-  }
-
-  saveProduct(updatedProduct: any): void {
+  onSaveProduct(updatedProduct: ProductDialogData): void {
     const index = this.editingProductIndex();
     if (index === null) return;
 
@@ -288,7 +282,12 @@ export class ReleaseDetailsComponent implements OnInit {
     if (!currentRelease) return;
 
     const updatedProducts = [...currentRelease.products];
-    updatedProducts[index] = updatedProduct;
+    // Preserve workflow_states from original
+    const originalProduct = updatedProducts[index];
+    updatedProducts[index] = {
+      ...updatedProduct,
+      workflow_states: originalProduct.workflow_states,
+    };
 
     const releaseId = currentRelease.id || currentRelease._id;
     if (!releaseId) return;
@@ -304,28 +303,6 @@ export class ReleaseDetailsComponent implements OnInit {
     });
   }
 
-  updatePoc(value: string, productIndex: number, pocIndex: number): void {
-    const currentRelease = this.release();
-    if (currentRelease && currentRelease.products[productIndex]) {
-      const updatedPocs = [...currentRelease.products[productIndex].pocs];
-      updatedPocs[pocIndex] = value;
-      currentRelease.products[productIndex].pocs = updatedPocs;
-    }
-  }
-
-  addPoc(productIndex: number): void {
-    const currentRelease = this.release();
-    if (currentRelease && currentRelease.products[productIndex]) {
-      currentRelease.products[productIndex].pocs.push('');
-    }
-  }
-
-  removePoc(productIndex: number, pocIndex: number): void {
-    const currentRelease = this.release();
-    if (currentRelease && currentRelease.products[productIndex]) {
-      currentRelease.products[productIndex].pocs.splice(pocIndex, 1);
-    }
-  }
 
   toggleScopeExpansion(index: number): void {
     if (this.expandedScopes.has(index)) {

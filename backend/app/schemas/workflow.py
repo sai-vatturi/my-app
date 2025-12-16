@@ -43,12 +43,21 @@ class WorkflowStage(BaseModel):
     default_days_before_release: int = Field(default=0, ge=0)
 
 
+
+class StageAttachment(BaseModel):
+    id: str
+    filename: str
+    uploaded_at: datetime
+    uploaded_by: Optional[str] = None
+
+
 class WorkflowStageState(BaseModel):
     status: bool = False
     completed_at: Optional[datetime] = None
     attachment_id: Optional[str] = None
     attachment_filename: Optional[str] = None
     attachment_uploaded_at: Optional[datetime] = None
+    attachments: List[StageAttachment] = Field(default_factory=list)
     deadline: Optional[datetime] = None  # Calculated deadline based on release date and default_days_before_release
 
 

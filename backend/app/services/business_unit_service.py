@@ -3,12 +3,16 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from app.models.business_unit import BusinessUnit
 from app.schemas.business_unit import BusinessUnitCreate, BusinessUnitUpdate
+from fastapi import HTTPException
 
 class BusinessUnitService:
     def __init__(self, db):
         self.collection = db['business_units']
 
     async def create_business_unit(self, unit_data: BusinessUnitCreate) -> dict:
+        if await self.collection.find_one({"name": unit_data.name}):
+            raise HTTPException(status_code=400, detail=f"Business Unit with name '{unit_data.name}' already exists.")
+
         unit = BusinessUnit(**unit_data.model_dump())
         result = await self.collection.insert_one(unit.to_dict())
         unit._id = result.inserted_id
@@ -35,6 +39,12 @@ class BusinessUnitService:
         update_data = {k: v for k, v in unit_data.model_dump(exclude_unset=True).items()}
         if not update_data:
             return await self.get_business_unit_by_id(unit_id)
+
+        if "name" in update_data:
+             name = update_data["name"]
+             existing = await self.collection.find_one({"name": name})
+             if existing and str(existing["_id"]) != unit_id:
+                 raise HTTPException(status_code=400, detail=f"Business Unit with name '{name}' already exists.")
 
         update_data['updated_at'] = datetime.now(timezone.utc)
         

@@ -1,0 +1,126 @@
+<div *ngIf="visible" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    (click)="onBackdropClick()">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        (click)="$event.stopPropagation()">
+
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+            <h3 class="text-xl font-bold text-gray-900">{{ title() }}</h3>
+            <button (click)="onCancel()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="p-6 space-y-4">
+            <!-- Product Selection (Add mode) -->
+            <div *ngIf="mode === 'add'">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Product <span
+                        class="text-red-500">*</span></label>
+                <select [ngModel]="_product().product_id" (ngModelChange)="updateProductId($event)"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <option value="" disabled>Select a product...</option>
+                    <option *ngFor="let p of availableProducts" [value]="p.id || p._id">{{ p.name }}</option>
+                </select>
+            </div>
+
+            <!-- Product Name (Edit mode - Read-only) -->
+            <div *ngIf="mode === 'edit'">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Product</label>
+                <div class="px-4 py-2 bg-gray-50 rounded-lg text-gray-900 font-medium">
+                    {{ getProductName(_product().product_id) }}
+                </div>
+            </div>
+
+            <!-- Scope Fields -->
+            <div class="grid grid-cols-1 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">New Features</label>
+                    <textarea [ngModel]="_product().new_features" (ngModelChange)="updateNewFeatures($event)" rows="2"
+                        appAutoResize
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 overflow-hidden resize-none"
+                        placeholder="List new features..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Enhancements</label>
+                    <textarea [ngModel]="_product().enhancements" (ngModelChange)="updateEnhancements($event)" rows="2"
+                        appAutoResize
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 overflow-hidden resize-none"
+                        placeholder="List enhancements..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Key Defect Fixes</label>
+                    <textarea [ngModel]="_product().key_defect_fixes" (ngModelChange)="updateKeyDefectFixes($event)"
+                        rows="2" appAutoResize
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 overflow-hidden resize-none"
+                        placeholder="List key defect fixes..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Deferred Items</label>
+                    <textarea [ngModel]="_product().deferred_items" (ngModelChange)="updateDeferredItems($event)"
+                        rows="2" appAutoResize
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 overflow-hidden resize-none"
+                        placeholder="List deferred items..."></textarea>
+                </div>
+            </div>
+
+
+            <!-- POCs -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">POCs</label>
+                <div class="space-y-2">
+                    <div *ngFor="let poc of _product().pocs; let i = index; trackBy: trackByIndex" class="flex gap-2">
+                        <input type="text" [ngModel]="poc" (ngModelChange)="updatePoc($event, i)" placeholder="POC Name"
+                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <button (click)="removePoc(i)"
+                            class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            Remove
+                        </button>
+                    </div>
+                    <button (click)="addPoc()" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                        + Add POC
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fixed Versions -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Fixed Versions</label>
+                <div class="space-y-2">
+                    <div *ngFor="let version of _product().fixed_versions; let i = index; trackBy: trackByIndex"
+                        class="flex gap-2">
+                        <input type="text" [ngModel]="version.jira_board_id"
+                            (ngModelChange)="updateFixedVersion(i, 'jira_board_id', $event)" placeholder="Board ID"
+                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <input type="text" [ngModel]="version.fixed_version"
+                            (ngModelChange)="updateFixedVersion(i, 'fixed_version', $event)" placeholder="Version"
+                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <button (click)="removeFixedVersion(i)"
+                            class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            Remove
+                        </button>
+                    </div>
+                    <button (click)="addFixedVersion()"
+                        class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                        + Add Fixed Version
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+            <button (click)="onCancel()"
+                class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors font-medium">
+                Cancel
+            </button>
+            <button (click)="onSave()" [disabled]="!canSave()"
+                class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                {{ saveButtonText() }}
+            </button>
+        </div>
+    </div>
+</div>

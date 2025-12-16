@@ -1,5 +1,6 @@
 from typing import List, Optional
 from bson import ObjectId
+from fastapi import HTTPException
 from datetime import datetime, timezone
 from app.core.config import settings
 from app.models.application import Application
@@ -14,6 +15,9 @@ class ApplicationService:
 
     def create(self, application_in: ApplicationCreate) -> Application:
         application_data = application_in.model_dump()
+        if self.collection.find_one({"name": application_data.get("name")}):
+            raise HTTPException(status_code=400, detail=f"Application with name '{application_data.get('name')}' already exists.")
+        
         application = Application(**application_data)
         result = self.collection.insert_one(application.to_dict())
         return application
@@ -35,6 +39,13 @@ class ApplicationService:
         update_data = application_in.model_dump(exclude_unset=True)
         if not update_data:
             return self.get(id)
+        
+        if "name" in update_data:
+             name = update_data["name"]
+             existing = self.collection.find_one({"name": name})
+             # Check if existing ID is different from current ID
+             if existing and str(existing["_id"]) != id:
+                 raise HTTPException(status_code=400, detail=f"Application with name '{name}' already exists.")
             
         update_data['updated_at'] = datetime.now(timezone.utc)
         

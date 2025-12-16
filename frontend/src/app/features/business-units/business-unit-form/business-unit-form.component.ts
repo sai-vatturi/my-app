@@ -4,11 +4,13 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
+import { AlertComponent } from '../../../shared/components/alert/alert.component';
+import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 
 @Component({
     selector: 'app-business-unit-form',
     standalone: true,
-    imports: [CommonModule, ReactiveFormsModule, RouterModule, ButtonComponent],
+    imports: [CommonModule, ReactiveFormsModule, RouterModule, ButtonComponent, AlertComponent, LoadingSpinnerComponent],
     templateUrl: './business-unit-form.component.html'
 })
 export class BusinessUnitFormComponent implements OnInit {

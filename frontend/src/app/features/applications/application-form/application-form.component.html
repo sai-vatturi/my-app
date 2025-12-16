@@ -1,58 +1,34 @@
-<div class="max-w-2xl mx-auto">
-    <div class="md:flex md:items-center md:justify-between mb-8">
-        <div class="flex-1 min-w-0">
-            <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-                {{ isEditMode() ? 'Edit Application' : 'Create Application' }}
-            </h2>
-        </div>
-    </div>
-
-    <form [formGroup]="applicationForm" (ngSubmit)="onSubmit()"
-        class="space-y-6 bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
+<div class="max-w-4xl">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">{{ isEditMode() ? 'Edit' : 'Create' }} Application</h1>
+    <app-alert *ngIf="error()" [message]="error()!" type="error" />
+    <app-loading-spinner *ngIf="loading()" />
+    <form *ngIf="!loading()" [formGroup]="applicationForm" (ngSubmit)="onSubmit()"
+        class="space-y-6 bg-white shadow rounded-lg p-6">
         <!-- Name -->
         <div>
-            <label for="name" class="block text-sm font-medium text-gray-700">Application Name</label>
-            <div class="mt-1">
-                <input type="text" id="name" formControlName="name"
-                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md px-3 py-2"
-                    [class.border-red-300]="applicationForm.get('name')?.invalid && applicationForm.get('name')?.touched">
-            </div>
-            <div *ngIf="applicationForm.get('name')?.invalid && applicationForm.get('name')?.touched"
-                class="mt-1 text-sm text-red-600">
-                Name is required
-            </div>
+            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Name <span
+                    class="text-red-500">*</span></label>
+            <input id="name" type="text" formControlName="name"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                [class.border-red-500]="applicationForm.get('name')?.invalid && applicationForm.get('name')?.touched" />
+            <p *ngIf="applicationForm.get('name')?.invalid && applicationForm.get('name')?.touched"
+                class="mt-1 text-sm text-red-600">Application name is required</p>
         </div>
 
         <!-- Description -->
         <div>
-            <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-            <div class="mt-1">
-                <textarea id="description" rows="3" formControlName="description"
-                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md px-3 py-2"></textarea>
-            </div>
-            <p class="mt-2 text-sm text-gray-500">Brief description of the application.</p>
+            <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea id="description" formControlName="description" rows="3"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                placeholder="Brief description of the application..."></textarea>
         </div>
 
         <!-- Actions -->
-        <div class="flex justify-end space-x-3 pt-5 border-t border-gray-200">
-            <button type="button" routerLink="/applications"
-                class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                Cancel
-            </button>
-            <button type="submit" [disabled]="applicationForm.invalid || submitting()"
-                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                <span *ngIf="submitting()" class="mr-2">
-                    <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
-                        viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
-                        </circle>
-                        <path class="opacity-75" fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                        </path>
-                    </svg>
-                </span>
+        <div class="flex gap-4 pt-4 border-t">
+            <app-button type="submit" [disabled]="applicationForm.invalid || submitting()" [loading]="submitting()">
                 {{ isEditMode() ? 'Save Changes' : 'Create Application' }}
-            </button>
+            </app-button>
+            <app-button type="button" variant="secondary" routerLink="/applications">Cancel</app-button>
         </div>
     </form>
 </div>

@@ -1,16 +1,17 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { LucideAngularModule, Plus, Edit2, Trash2, AppWindow, Package, ChevronDown, ChevronRight } from 'lucide-angular';
 import { ApplicationService } from '../../../core/services/application.service';
 import { ProductService } from '../../../core/services/product.service';
 import { Application } from '../../../core/models/application.model';
 import { Product } from '../../../core/models/product.model';
+import { ButtonComponent } from '../../../shared/components/button/button.component';
 
 @Component({
     selector: 'app-application-list',
     standalone: true,
-    imports: [CommonModule, RouterModule, LucideAngularModule],
+    imports: [CommonModule, RouterModule, LucideAngularModule, ButtonComponent],
     templateUrl: './application-list.component.html'
 })
 export class ApplicationListComponent implements OnInit {
@@ -29,7 +30,8 @@ export class ApplicationListComponent implements OnInit {
 
     constructor(
         private applicationService: ApplicationService,
-        private productService: ProductService
+        private productService: ProductService,
+        private router: Router
     ) { }
 
     ngOnInit(): void {
@@ -89,5 +91,13 @@ export class ApplicationListComponent implements OnInit {
                 });
             }
         }
+    }
+
+    navigateToNew(): void {
+        this.router.navigate(['/applications/new']);
+    }
+
+    navigateToEdit(appId: string): void {
+        this.router.navigate(['/applications', appId, 'edit']);
     }
 }

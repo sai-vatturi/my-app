@@ -15,6 +15,10 @@ export interface FixedVersionInfo {
 export interface ReleaseProduct {
   product_id: string;
   scope_description?: string;
+  new_features?: string;
+  enhancements?: string;
+  key_defect_fixes?: string;
+  deferred_items?: string;
   pocs: string[];
   fixed_versions: FixedVersionInfo[];
   workflow_states?: { [key: string]: WorkflowStageState };

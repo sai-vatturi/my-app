@@ -13,12 +13,15 @@ import { BusinessUnit } from '../../../core/models/business-unit.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
-import { TimelineEditorV2Component } from '../../../shared/components/timeline-editor-v2/timeline-editor-v2.component';
+import { TimelineEditorComponent, TimelineUpdateEvent } from '../../../shared/components/timeline-editor/timeline-editor.component';
+import { ReleaseProductsTableComponent } from '../release-products-table/release-products-table';
+import { ProductEditDialogComponent, ProductDialogData } from '../product-edit-dialog/product-edit-dialog';
+import { catchError, map, of, switchMap, finalize } from 'rxjs';
 
 @Component({
   selector: 'app-release-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, LoadingSpinnerComponent, AlertComponent, ButtonComponent, TimelineEditorV2Component],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, LoadingSpinnerComponent, AlertComponent, ButtonComponent, TimelineEditorComponent, ReleaseProductsTableComponent, ProductEditDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './release-form.component.html',
 })
@@ -26,20 +29,16 @@ export class ReleaseFormComponent implements OnInit {
   form: FormGroup;
   isEdit = false;
   currentStep = signal(1); // 1: Info, 2: Products, 3: Timeline
+
   createdRelease = signal<ReleaseCreate | any>(null); // Track the release created in Step 1
   products = signal<any[]>([]); // Track products for Step 2
   productMap = new Map<string, string>();
 
-  // State for modals
+  // State for dialogs
   editingProductIndex = signal<number | null>(null);
+  editingProduct = signal<ProductDialogData | null>(null);
   addingProduct = signal<boolean>(false);
-
-  newProduct: Partial<ReleaseProduct> & { product_id: string; scope_description: string; fixed_versions: any[]; pocs: string[] } = {
-    product_id: '',
-    scope_description: '',
-    fixed_versions: [],
-    pocs: []
-  };
+  newProductData = signal<ProductDialogData | null>(null);
 
   releaseId: string | null = null;
   loading = signal(false);
@@ -82,7 +81,8 @@ export class ReleaseFormComponent implements OnInit {
       description: [''],
       business_unit_id: ['', Validators.required],
       release_type: [ReleaseType.MAJOR_RELEASE, Validators.required],
-      release_date: ['', Validators.required],
+      release_date_day: ['', Validators.required],
+      release_date_time: ['00:00', Validators.required],
       chg_number: [''],
       overall_scope: ['']
     });
@@ -169,7 +169,8 @@ export class ReleaseFormComponent implements OnInit {
           business_unit_id: release.business_unit_id || '',
           release_type: release.release_type,
           status: release.status,
-          release_date: releaseDate.toISOString().slice(0, 19), // Include seconds
+          release_date_day: releaseDate.toISOString().split('T')[0],
+          release_date_time: releaseDate.toTimeString().slice(0, 5),
           chg_number: release.chg_number || '',
           overall_scope: release.overall_scope || ''
         });
@@ -190,6 +191,9 @@ export class ReleaseFormComponent implements OnInit {
     if (this.currentStep() === 1) {
       this.handleStep1Submit();
     } else if (this.currentStep() === 2) {
+      if (!this.createdRelease()?.workflow_states || Object.keys(this.createdRelease()!.workflow_states).length === 0) {
+        this.calculateDefaultWorkflowStates();
+      }
       this.currentStep.set(3);
     } else {
       // Step 3 (Timeline) - Finalize
@@ -203,44 +207,49 @@ export class ReleaseFormComponent implements OnInit {
       return;
     }
 
-    this.submitting.set(true);
-    this.error.set(null);
+    const name = this.form.get('name')?.value;
+    const isNameChanged = !this.isEdit || (this.createdRelease()?.name !== name);
 
-    const formValue = this.form.value;
-    const data = { ...formValue };
-
-    if (this.isEdit && this.releaseId) {
-      // Existing release update
-      this.releaseService.update(this.releaseId, data as ReleaseUpdate).subscribe({
-        next: (updated) => {
-          this.submitting.set(false);
-          this.createdRelease.set(updated);
-          // If editing, we save and exit directly from step 1
-          this.finish();
-        },
-        error: (err) => {
-          this.submitting.set(false);
-          this.error.set(err.message || 'Failed to update release');
+    if (isNameChanged) {
+      this.submitting.set(true);
+      this.releaseService.getById(name).pipe(
+        map(() => true), // Exists
+        catchError(() => of(false)), // 404 - Unique
+        finalize(() => this.submitting.set(false))
+      ).subscribe(exists => {
+        if (exists) {
+          this.error.set('A release with this name already exists.');
+        } else {
+          this.proceedToStep2();
         }
       });
     } else {
-      // New release creation
-      this.releaseService.create(data as ReleaseCreate).subscribe({
-        next: (createdRelease) => {
-          this.submitting.set(false);
-          this.createdRelease.set(createdRelease);
-          const id = createdRelease.id || createdRelease._id;
-          if (id) {
-            this.releaseId = id;
-          }
-          this.currentStep.set(2);
-        },
-        error: (err) => {
-          this.submitting.set(false);
-          this.error.set(err.message || 'Failed to create release');
-        }
-      });
+      this.proceedToStep2();
     }
+  }
+
+  proceedToStep2(): void {
+    const formValue = this.form.value;
+    const releaseDate = this.getReleaseDateFromForm();
+    const releaseData = {
+      ...formValue,
+      release_date: releaseDate
+    };
+    // Update local state without API call
+    if (this.createdRelease()) {
+      this.createdRelease.update((prev: any) => ({ ...prev, ...releaseData }));
+    } else {
+      this.createdRelease.set({ ...releaseData, products: [], workflow_states: {} });
+    }
+    this.currentStep.set(2);
+    this.error.set(null);
+  }
+
+  getReleaseDateFromForm(): string {
+    const day = this.form.get('release_date_day')?.value;
+    const time = this.form.get('release_date_time')?.value;
+    if (!day || !time) return '';
+    return `${day}T${time}:00`;
   }
 
   nextStep(): void {
@@ -256,12 +265,42 @@ export class ReleaseFormComponent implements OnInit {
   }
 
   finish(): void {
-    const name = this.createdRelease()?.name;
-    if (name) {
-      this.router.navigate(['/releases', name]);
-    } else if (this.releaseId) {
-      // Fallback
-      this.router.navigate(['/releases', this.releaseId]);
+    // Finalize creation or update
+    this.submitting.set(true);
+
+    // Construct payload
+    const data = { ...this.createdRelease() };
+
+    // Ensure products are up to date
+    data.products = this.products();
+
+    // Ensure dates are string iso
+    if (data.release_date instanceof Date) {
+      data.release_date = data.release_date.toISOString();
+    }
+
+    if (this.isEdit && this.releaseId) {
+      this.releaseService.update(this.releaseId, data).subscribe({
+        next: (updated) => {
+          this.submitting.set(false);
+          this.router.navigate(['/releases', updated.name]);
+        },
+        error: (err) => {
+          this.submitting.set(false);
+          this.error.set(err.message || 'Failed to update release');
+        }
+      });
+    } else {
+      this.releaseService.create(data).subscribe({
+        next: (created) => {
+          this.submitting.set(false);
+          this.router.navigate(['/releases', created.name]);
+        },
+        error: (err) => {
+          this.submitting.set(false);
+          this.error.set(err.message || 'Failed to create release');
+        }
+      });
     }
   }
 
@@ -283,89 +322,167 @@ export class ReleaseFormComponent implements OnInit {
 
   // Product Management Methods
   openAddProductDialog(): void {
-    this.newProduct = {
+    this.newProductData.set({
       product_id: '',
-      scope_description: '',
+      new_features: '',
+      enhancements: '',
+      key_defect_fixes: '',
+      deferred_items: '',
       fixed_versions: [],
       pocs: []
-    };
+    });
     this.addingProduct.set(true);
   }
 
   closeAddProductDialog(): void {
     this.addingProduct.set(false);
+    this.newProductData.set(null);
   }
 
-  saveNewProduct(): void {
-    if (!this.newProduct.product_id) return;
+  onSaveNewProduct(productData: ProductDialogData): void {
+    if (!productData.product_id) return;
 
-    if (!this.releaseId) return;
+    const productToAdd = { ...productData };
 
-    // Get current products from signal or source of truth
+    // If we have default states calculated, add them to the product
+    if (this.createdRelease()?.workflow_states) {
+      productToAdd.workflow_states = { ...this.createdRelease().workflow_states };
+    }
+
     const currentProducts = this.products();
-    const updatedProducts = [...currentProducts, this.newProduct];
+    this.products.set([...currentProducts, productToAdd]);
+    this.closeAddProductDialog();
+  }
 
-    this.releaseService.update(this.releaseId, { products: updatedProducts }).subscribe({
-      next: (updated) => {
-        this.createdRelease.set(updated);
-        this.products.set(updated.products || []);
-        this.closeAddProductDialog();
-      },
-      error: (err) => {
-        this.error.set(err.message || 'Failed to add product');
+  onTimelineUpdate(event: TimelineUpdateEvent): void {
+    const deadlineStr = event.deadline.toISOString();
+    const stageOrder = event.stageOrder.toString();
+
+    // Clone release state
+    const currentRelease = { ...this.createdRelease() };
+    if (!currentRelease.workflow_states) currentRelease.workflow_states = {};
+
+    let currentProducts = [...this.products()];
+
+    if (event.productId) {
+      // Product specific update
+      const pIndex = currentProducts.findIndex(p => (p.product_id || p.id || p._id) === event.productId);
+      if (pIndex !== -1) {
+        const product = { ...currentProducts[pIndex] };
+        product.workflow_states = { ...(product.workflow_states || {}) };
+        product.workflow_states[stageOrder] = { deadline: deadlineStr, status: false };
+        currentProducts[pIndex] = product;
+        this.products.set(currentProducts);
       }
-    });
+    } else {
+      // Release wide update - Apply to Release Default AND All Products
+      currentRelease.workflow_states[stageOrder] = { deadline: deadlineStr, status: false };
+
+      // Update all products
+      currentProducts = currentProducts.map(p => {
+        const product = { ...p };
+        product.workflow_states = { ...(product.workflow_states || {}) };
+        product.workflow_states[stageOrder] = { deadline: deadlineStr, status: false };
+        return product;
+      });
+
+      this.products.set(currentProducts);
+    }
+
+    this.createdRelease.set(currentRelease);
   }
 
   onReleaseUpdated(updatedRelease: any): void {
-    // Update the signal with the fresh release data from the timeline editor
     this.createdRelease.set(updatedRelease);
-    if (updatedRelease.products) {
-      this.products.set(updatedRelease.products);
-    }
   }
 
   removeProduct(index: number): void {
-    if (!this.releaseId) return;
-
     const currentProducts = [...this.products()];
     currentProducts.splice(index, 1);
+    this.products.set(currentProducts);
+  }
 
-    this.releaseService.update(this.releaseId, { products: currentProducts }).subscribe({
-      next: (updated) => {
-        this.createdRelease.set(updated);
-        this.products.set(updated.products || []);
-      },
-      error: (err) => {
-        this.error.set(err.message || 'Failed to remove product');
-      }
+  editProduct(index: number): void {
+    const product = this.products()[index];
+    this.editingProduct.set({
+      product_id: product.product_id,
+      new_features: product.new_features || '',
+      enhancements: product.enhancements || '',
+      key_defect_fixes: product.key_defect_fixes || '',
+      deferred_items: product.deferred_items || '',
+      pocs: [...(product.pocs || [])],
+      fixed_versions: (product.fixed_versions || []).map((v: any) => ({ ...v })),
+      workflow_states: product.workflow_states,
     });
+    this.editingProductIndex.set(index);
   }
 
-  // Helper for new product form
-  addNewProductPoc(): void {
-    this.newProduct.pocs.push('');
+  closeProductDialog(): void {
+    this.editingProductIndex.set(null);
+    this.editingProduct.set(null);
   }
 
-  removeNewProductPoc(index: number): void {
-    this.newProduct.pocs.splice(index, 1);
-  }
+  onSaveProduct(updatedProduct: ProductDialogData): void {
+    const index = this.editingProductIndex();
+    if (index === null) return;
 
-  updateNewProductPoc(value: string, index: number): void {
-    const updatedPocs = [...this.newProduct.pocs];
-    updatedPocs[index] = value;
-    this.newProduct.pocs = updatedPocs;
-  }
-
-  addNewProductVersion(): void {
-    this.newProduct.fixed_versions.push({ jira_board_id: '', fixed_version: '' });
-  }
-
-  removeNewProductVersion(index: number): void {
-    this.newProduct.fixed_versions.splice(index, 1);
+    const currentProducts = [...this.products()];
+    // Preserve workflow_states from original product
+    const originalProduct = currentProducts[index];
+    currentProducts[index] = {
+      ...updatedProduct,
+      workflow_states: originalProduct.workflow_states,
+    };
+    this.products.set(currentProducts);
+    this.closeProductDialog();
   }
 
   trackByIndex(index: number, item: any): number {
     return index;
+  }
+
+
+  private calculateDefaultWorkflowStates(): void {
+    const release = this.createdRelease();
+    const workflow = this.selectedWorkflow();
+
+    if (!release || !workflow || !release.release_date) return;
+
+    const releaseDate = new Date(release.release_date);
+    const states: any = {};
+
+    workflow.stages.forEach(stage => {
+      const daysBefore = stage.default_days_before_release || 0;
+      const deadline = this.subtractBusinessDays(releaseDate, daysBefore);
+      // Set to 18:00
+      deadline.setHours(18, 0, 0, 0);
+
+      states[stage.order.toString()] = {
+        deadline: deadline.toISOString(),
+        status: false
+      };
+    });
+
+    this.createdRelease.update((prev: any) => ({ ...prev, workflow_states: states }));
+
+    // Also update all existing products with these defaults
+    const currentProducts = this.products().map(p => ({
+      ...p,
+      workflow_states: { ...states } // Copy defaults
+    }));
+    this.products.set(currentProducts);
+  }
+
+  private subtractBusinessDays(date: Date, days: number): Date {
+    const result = new Date(date);
+    let count = 0;
+    while (count < days) {
+      result.setDate(result.getDate() - 1);
+      const day = result.getDay();
+      if (day !== 0 && day !== 6) { // Skip Sunday (0) and Saturday (6)
+        count++;
+      }
+    }
+    return result;
   }
 }

@@ -1,6 +1,7 @@
 from typing import List, Optional
 from datetime import datetime, timezone
 from bson import ObjectId
+from fastapi import HTTPException
 
 from app.schemas.product import ProductCreate, ProductUpdate
 from app.models.product import Product
@@ -26,6 +27,9 @@ class ProductService:
 
     async def create_product(self, product_data: ProductCreate) -> dict:
         """Create a new product and update related squads"""
+        if await self.collection.find_one({"name": product_data.name}):
+            raise HTTPException(status_code=400, detail=f"Product with name '{product_data.name}' already exists.")
+
         # Convert JiraBoardInfo objects to dictionaries
         jira_boards_dicts = [board.model_dump() for board in product_data.jira_boards] if product_data.jira_boards else []
         
@@ -64,6 +68,12 @@ class ProductService:
         existing_product = await self.collection.find_one({"_id": ObjectId(product_id)})
         if not existing_product:
             return None
+        
+        if "name" in product_data.model_dump(exclude_unset=True):
+             name = product_data.name
+             existing = await self.collection.find_one({"name": name})
+             if existing and str(existing["_id"]) != str(existing_product["_id"]):
+                 raise HTTPException(status_code=400, detail=f"Product with name '{name}' already exists.")
         
         old_squads = set(existing_product.get("squads", []))
         update_data = product_data.model_dump(exclude_none=True)

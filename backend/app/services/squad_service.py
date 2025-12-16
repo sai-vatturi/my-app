@@ -1,6 +1,7 @@
 from typing import List, Optional
 from datetime import datetime, timezone
 from bson import ObjectId
+from fastapi import HTTPException
 
 from app.schemas.squad import SquadCreate, SquadUpdate
 from app.models.squad import Squad
@@ -26,6 +27,9 @@ class SquadService:
 
     async def create_squad(self, squad_data: SquadCreate) -> dict:
         """Create a new squad and update related products"""
+        if await self.collection.find_one({"name": squad_data.name}):
+             raise HTTPException(status_code=400, detail=f"Squad with name '{squad_data.name}' already exists.")
+
         squad = Squad(
             name=squad_data.name,
             description=squad_data.description,
@@ -56,8 +60,15 @@ class SquadService:
         """Update an existing squad and maintain two-way relationship with products"""
         existing_squad = await self.collection.find_one({"_id": ObjectId(squad_id)})
         if not existing_squad:
+
             return None
         
+        if "name" in squad_data.model_dump(exclude_unset=True):
+             name = squad_data.name
+             existing = await self.collection.find_one({"name": name})
+             if existing and str(existing["_id"]) != str(existing_squad["_id"]):
+                 raise HTTPException(status_code=400, detail=f"Squad with name '{name}' already exists.")
+
         old_products = set(existing_squad.get("products", []))
         update_data = squad_data.model_dump(exclude_none=True)
         new_products = set(update_data.get("products", old_products)) if "products" in update_data else old_products
