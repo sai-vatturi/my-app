@@ -48,10 +48,6 @@
                         class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Products Count
                     </th>
-                    <th scope="col"
-                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created At
-                    </th>
                     <th scope="col" class="relative px-6 py-3">
                         <span class="sr-only">Actions</span>
                     </th>
@@ -84,9 +80,6 @@
                                 {{ getProductsForApplication(app.id || app._id).length }} products
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ app.created_at | date }}
-                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
                             (click)="$event.stopPropagation()">
                             <a [routerLink]="['/applications', app.id || app._id, 'edit']"
@@ -101,7 +94,7 @@
 
                     <!-- Expanded Details -->
                     <tr *ngIf="isExpanded(app)" class="bg-gray-50">
-                        <td colspan="5" class="px-6 py-4">
+                        <td colspan="4" class="px-6 py-4">
                             <div class="ml-14">
                                 <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
                                     <lucide-icon [img]="Package" [size]="16" class="mr-2 text-indigo-500"></lucide-icon>

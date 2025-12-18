@@ -8,6 +8,7 @@ import { LoadingSpinnerComponent } from '../../../shared/components/loading-spin
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
+import { LucideAngularModule, Rocket, Plus } from 'lucide-angular';
 
 @Component({
   selector: 'app-release-list',
@@ -18,12 +19,16 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
     LoadingSpinnerComponent,
     AlertComponent,
     ButtonComponent,
-    StatusBadgeComponent
+    StatusBadgeComponent,
+    LucideAngularModule
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './release-list.component.html',
 })
 export class ReleaseListComponent implements OnInit {
+  readonly Rocket = Rocket;
+  readonly Plus = Plus;
+
   loading = signal(false);
   error = signal<string | null>(null);
   deleting = signal<string | null>(null);

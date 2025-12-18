@@ -9,7 +9,7 @@ import { Product } from '../../../core/models/product.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { AlertComponent } from '../../../shared/components/alert/alert.component';
 import { ButtonComponent } from '../../../shared/components/button/button.component';
-import { LucideAngularModule, Package, ChevronDown, ChevronRight, Users } from 'lucide-angular';
+import { LucideAngularModule, Package, ChevronDown, ChevronRight, Users, Plus } from 'lucide-angular';
 
 @Component({
   selector: 'app-squad-list',
@@ -30,6 +30,7 @@ export class SquadListComponent implements OnInit {
   readonly ChevronDown = ChevronDown;
   readonly ChevronRight = ChevronRight;
   readonly Users = Users;
+  readonly Plus = Plus;
 
   loading = signal(false);
   error = signal<string | null>(null);

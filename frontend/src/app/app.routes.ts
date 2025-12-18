@@ -68,6 +68,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/business-units/business-unit-form/business-unit-form.component').then(m => m.BusinessUnitFormComponent)
       },
       {
+        path: 'business-units/:id',
+        loadComponent: () => import('./features/business-units/business-unit-details/business-unit-details.component').then(m => m.BusinessUnitDetailsComponent)
+      },
+      {
         path: 'business-units/:id/edit',
         loadComponent: () => import('./features/business-units/business-unit-form/business-unit-form.component').then(m => m.BusinessUnitFormComponent)
       },

@@ -1,6 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
+import { LucideAngularModule, Briefcase, Edit2, Trash2, Plus } from 'lucide-angular';
 import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { BusinessUnit } from '../../../core/models/business-unit.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
@@ -9,15 +10,24 @@ import { ButtonComponent } from '../../../shared/components/button/button.compon
 @Component({
     selector: 'app-business-unit-list',
     standalone: true,
-    imports: [CommonModule, RouterModule, LoadingSpinnerComponent, ButtonComponent],
+    imports: [CommonModule, RouterModule, LucideAngularModule, LoadingSpinnerComponent, ButtonComponent],
     templateUrl: './business-unit-list.component.html'
 })
 export class BusinessUnitListComponent implements OnInit {
+    // Icons
+    readonly Briefcase = Briefcase;
+    readonly Edit2 = Edit2;
+    readonly Trash2 = Trash2;
+    readonly Plus = Plus;
+
     businessUnits = signal<BusinessUnit[]>([]);
     loading = signal(true);
     error = signal<string | null>(null);
 
-    constructor(private businessUnitService: BusinessUnitService) { }
+    constructor(
+        private businessUnitService: BusinessUnitService,
+        private router: Router
+    ) { }
 
     ngOnInit(): void {
         this.loadBusinessUnits();

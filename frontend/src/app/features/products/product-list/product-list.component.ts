@@ -1,7 +1,7 @@
 import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { LucideAngularModule, Plus, Edit2, Trash2, ChevronDown, ChevronRight, Users, AppWindow } from 'lucide-angular';
+import { LucideAngularModule, Plus, Edit2, Trash2, ChevronDown, ChevronRight, Users, AppWindow, Package } from 'lucide-angular';
 import { ProductService } from '../../../core/services/product.service';
 import { BusinessUnitService } from '../../../core/services/business-unit.service';
 import { SquadService } from '../../../core/services/squad.service';
@@ -35,6 +35,7 @@ export class ProductListComponent implements OnInit {
   readonly ChevronRight = ChevronRight;
   readonly Users = Users;
   readonly AppWindow = AppWindow;
+  readonly Package = Package;
 
   loading = signal(false);
   error = signal<string | null>(null);
